@@ -1,0 +1,23 @@
+{
+  "name": "neuroweblab",
+  "version": "0.0.1",
+  "description": "NeuroWebLab backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neuroanatomy/NeuroWebLab.git"
+  },
+  "keywords": [
+    "neuroscience",
+    "collaboration"
+  ],
+  "author": "Roberto Toro <rto@braincatalogue.org> (https://neuroanatomy.github.io)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/neuroanatomy/NeuroWebLab/issues"
+  },
+  "homepage": "https://github.com/neuroanatomy/NeuroWebLab#readme"
+}
