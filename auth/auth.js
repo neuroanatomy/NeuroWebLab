@@ -14,6 +14,7 @@ const ensureAuthenticated = (req, res, next) => {
 };
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
+
 const init = ({app, MONGO_DB, dirname, usernameField}) => {
   app.use(session({
     secret: SESSION_SECRET,

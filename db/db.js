@@ -2,9 +2,7 @@ const monk = require('monk');
 let db;
 let connected = false;
 
-const mongoDB = () => {
-  return db;
-};
+const mongoDB = () => db;
 
 const version = () => {
   console.log("db v0.0.1");
@@ -21,7 +19,10 @@ let projectsCollection;
 const checkHealth = () => connected;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
-/** add user */
+/** add user
+ * @param {object} user User to add
+ * @returns {object} The user that was added
+*/
 const addUser = (user) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
@@ -32,6 +33,7 @@ const addUser = (user) => new Promise((resolve, reject) => {
 });
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
+
 const updateUser = (user) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
@@ -98,6 +100,7 @@ const upsertUser = (user) => new Promise((resolve, reject) => {
 });
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
+
 const init = ({
   MONGO_DB,
   overwriteMongoPath,

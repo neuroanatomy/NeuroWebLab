@@ -10,8 +10,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'a mi no me gusta la sémol
 
 chai.use(chaiHttp);
 
-const mongoDbPath = process.env.MONGODB_TEST
-if (!mongoDbPath) throw new Error(`MONGODB_TEST must be explicitly set to avoid overwriting production `)
+const mongoDbPath = process.env.MONGODB_TEST;
+if (!mongoDbPath) {
+  throw new Error(`MONGODB_TEST must be explicitly set to avoid overwriting production `);
+}
 
 const app = express();
 const db = require('../db/db');

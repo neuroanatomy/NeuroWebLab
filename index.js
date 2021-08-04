@@ -4,6 +4,7 @@ const db = require('./db/db');
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 let usernameField;
 const checkAnyoneUser = () => {
+
   /* check that the 'anyone' user exists. Insert it if it doesn't */
   const query = {};
   query[usernameField] = 'anyone';
@@ -26,11 +27,10 @@ const checkAnyoneUser = () => {
     });
 };
 
-const version = () => {
-  return "v0.0.1";
-}
+const version = () => "v0.0.1";
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
+
 const init = ({
   app,
   MONGO_DB,

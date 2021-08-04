@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const saltRounds = 10;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
+
 module.exports = ({app, usernameField}) => {
 
   passport.use(new LocalStrategy(
