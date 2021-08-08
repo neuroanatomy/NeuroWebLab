@@ -30,12 +30,6 @@ const init = ({
   annotationsCollection
 }) => {
 
-  /* variables used for compatibility */
-  dbToken.init({db});
-  dbUsers.init({db, usernameField, usersCollection, projectsCollection, checkHealth});
-  dbProjects.init({db, projectsCollection, checkHealth});
-  dbAnnotations.init({db, annotationsCollection, checkHealth});
-
   console.log(`connecting to mongodb at: ${overwriteMongoPath || MONGO_DB}`);
   db = monk(overwriteMongoPath || MONGO_DB);
 
@@ -43,6 +37,12 @@ const init = ({
     connected = true;
 
     console.log('connected successfully');
+
+    /* variables used for compatibility */
+    dbToken.init({db});
+    dbUsers.init({db, usernameField, usersCollection, projectsCollection, checkHealth});
+    dbProjects.init({db, projectsCollection, checkHealth});
+    dbAnnotations.init({db, annotationsCollection, checkHealth});
 
     if(typeof callback !== 'undefined') {
       return callback();
