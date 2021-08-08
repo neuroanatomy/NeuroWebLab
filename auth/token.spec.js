@@ -48,7 +48,7 @@ const user = {
   username: 'bob101'
 };
 
-describe('if db is not define, reponses are as expected', () => {
+describe('if db is not defined, reponses are as expected', () => {
   before(() => {
     const app = express();
     app.use(authTokenMiddleware);

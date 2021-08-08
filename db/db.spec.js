@@ -10,6 +10,7 @@ const db = require('./db');
 const usernameField = "username";
 const usersCollection = "users";
 const projectsCollection = "projects";
+const annotationsCollection = "annotations";
 
 db.init({
   MONGO_DB: mongoDbPath,

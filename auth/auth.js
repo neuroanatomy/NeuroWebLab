@@ -29,12 +29,15 @@ const init = ({app, MONGO_DB, dirname, usernameField}) => {
 
   app.use(passport.initialize());
   app.use(passport.session());
+
   passport.serializeUser((user, done) => {
     done(null, user);
   });
+
   passport.deserializeUser((user, done) => {
     done(null, user);
   });
+
   app.get('/logout', function (req, res) {
     req.logout();
     res.redirect(req.session.returnTo || '/');
