@@ -4,7 +4,7 @@
   "description": "NeuroWebLab backend",
   "main": "index.js",
   "scripts": {
-    "test": "export MONGODB_TEST='127.0.0.1:27017/mocha_test'; nyc mocha --exit db/db.spec.js auth/auth.spec.js auth/local.spec.js"
+    "test": "export MONGODB_TEST='127.0.0.1:27017/mocha_test'; nyc mocha --exit db/db.spec.js auth/auth.spec.js auth/local.spec.js auth/token.spec.js"
   },
   "repository": {
     "type": "git",
@@ -36,6 +36,7 @@
     "eslint-config-naat": "git+https://github.com/neuroanatomy/eslint-config-naat.git",
     "express": "^4.17.1",
     "mock-fs": "^5.0.0",
-    "nyc": "^15.1.0"
+    "nyc": "^15.1.0",
+    "sinon": "^11.1.2"
   }
 }
