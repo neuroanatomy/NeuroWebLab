@@ -58,6 +58,7 @@ const authTokenMiddleware = (req, res, next) => {
 
     return;
   }
+
   const {db} = req.app;
 
   if (!db) {

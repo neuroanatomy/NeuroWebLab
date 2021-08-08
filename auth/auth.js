@@ -5,6 +5,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'a mi no me gusta la sémol
 
 const github = require('./github');
 const local = require('./local');
+const {getTokenEndPoint} = require('./token');
 
 const ensureAuthenticated = (req, res, next) => {
   if (req.isAuthenticated()) {
@@ -50,6 +51,9 @@ const init = ({app, MONGO_DB, dirname, usernameField}) => {
   if(process.env.LOCALSIGNIN && process.env.LOCALSIGNIN === 'true') {
     local({app, usernameField});
   }
+
+  // add token auth endpoint
+  app.get('/token', getTokenEndPoint);
 
   /* simple demo */
   app.get('/secure-route-example', ensureAuthenticated, function (req, res) { res.send("access granted"); });
