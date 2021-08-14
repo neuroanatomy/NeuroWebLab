@@ -65,5 +65,16 @@ module.exports = {
   addUser: dbUsers.addUser,
   queryUser: dbUsers.queryUser,
   updateUser: dbUsers.updateUser,
-  upsertUser: dbUsers.upsertUser
+  upsertUser: dbUsers.upsertUser,
+  addProject: dbProjects.addProject,
+  deleteProject: dbProjects.deleteProject,
+  updateProject: dbProjects.updateProject,
+  queryProject: dbProjects.queryProject,
+  upsertProject: dbProjects.upsertProject,
+  queryAllProjects: dbProjects.queryAllProjects,
+  queryUserProjects: dbProjects.queryUserProjects,
+  searchProjects: dbProjects.searchProjects,
+  findAnnotations: dbAnnotations.findAnnotations,
+  updateAnnotations: dbAnnotations.updateAnnotation,
+  insertAnnotations: dbAnnotations.updateAnnotation
 };

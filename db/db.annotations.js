@@ -36,27 +36,30 @@ const findAnnotations = async (searchQuery, backup) => {
   return [];
 };
 
-/** annotations: Update annotation object, appending new regions, replacing existing ones
-  * @param {Object} saveQuery having fields {id, username, project, annotationType, annotation}
+/** annotations: Update annotation object: add new, replace existing, remove others
+  * @param {object} query The selection criteria for the update.
+  * @param {object} update The modifications to apply.
+  * @param {object} options Object with options: {upsert: <boolean>, multi: <boolean>}
   * @returns {Promise} to resolve when saving is complete
   */
-const updateAnnotation = async ({id, username, project, annotationType, annotation}) => {
+const updateAnnotations = async ({query, update, options}) => {
   if (!checkHealth()) {
     throw new Error('db connection not healthy');
   }
 
-  console.log("updateAnnotation function is not implemented yet");
-  console.log({id, username, project, annotationType, annotation});
+  const res = await db.get('annotations').update(query, update, options);
 
-  // get new annotations
+  return res;
+};
 
-  // get previous annotations
+const insertAnnotations = async (arr) => {
+  if (!checkHealth()) {
+    throw new Error('db connection not healthy');
+  }
 
-  // update previous annotations with new annotations,
+  const res = await db.get('annotations').insert(arr);
 
-  // mark previous version as backup
-
-  // add new version
+  return res;
 };
 
 const init = ({
@@ -72,5 +75,6 @@ const init = ({
 module.exports = {
   init,
   findAnnotations,
-  updateAnnotation
+  updateAnnotations,
+  insertAnnotations
 };
