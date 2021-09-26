@@ -61,5 +61,6 @@ const init = ({
 module.exports = {
   authTokenMiddleware,
   init,
+  getTokenEndPoint,
   version
 };
