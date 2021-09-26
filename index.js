@@ -1,6 +1,6 @@
 const auth = require("./auth/auth");
 const db = require('./db/db');
-const {authTokenMiddleware} = require('./auth/token');
+const {authTokenMiddleware, getTokenEndPoint} = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 let usernameField;
