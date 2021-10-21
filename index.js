@@ -38,7 +38,8 @@ const init = ({
   dirname,
   usernameField: newUsernameField,
   usersCollection,
-  projectsCollection
+  projectsCollection,
+  annotationsCollection
 }) => {
   usernameField = newUsernameField;
 
@@ -50,7 +51,8 @@ const init = ({
     callback: checkAnyoneUser,
     usernameField,
     usersCollection,
-    projectsCollection
+    projectsCollection,
+    annotationsCollection
   });
 
   app.db = db;
