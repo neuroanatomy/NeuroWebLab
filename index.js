@@ -1,6 +1,6 @@
 const auth = require("./auth/auth");
 const db = require('./db/db');
-const {authTokenMiddleware, getTokenEndPoint} = require('./auth/token');
+const {init: initTokenAuth, authTokenMiddleware, getTokenEndPoint} = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 let usernameField;
@@ -57,6 +57,7 @@ const init = ({
 
   app.db = db;
 
+  initTokenAuth({usernameField});
   auth.init({app, MONGO_DB, dirname, usernameField});
 };
 
