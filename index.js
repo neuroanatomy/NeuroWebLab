@@ -1,5 +1,6 @@
-const auth = require("./auth/auth");
+const auth = require('./auth/auth');
 const db = require('./db/db');
+const accessControl = require('./accessControl');
 const {init: initTokenAuth, authTokenMiddleware, getTokenEndPoint} = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
@@ -10,7 +11,7 @@ const checkAnyoneUser = () => {
   const query = {};
   query[usernameField] = 'anyone';
   // const query = {username: 'anyone'};
-  console.log({fn: "checkAnyoneUser", query});
+  console.log({fn: 'checkAnyoneUser', query});
 
   db.queryUser(query)
     .then((res) => {
@@ -28,7 +29,7 @@ const checkAnyoneUser = () => {
     });
 };
 
-const version = () => "v0.0.1";
+const version = () => 'v0.0.1';
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
@@ -65,5 +66,6 @@ module.exports = {
   authTokenMiddleware,
   init,
   getTokenEndPoint,
-  version
+  version,
+  ...accessControl
 };
