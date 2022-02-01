@@ -1,10 +1,13 @@
 const {getUserAccessLevel} = require('../helpers');
 
 module.exports = class HasPublicAccess {
+
+  /**
+   * @param {"collaborators" | "annotations" | "files"} type The access type
+   * @param {AccessLevel} requestedAccessLevel An AccessLevel instance
+   */
   constructor(type, requestedAccessLevel) {
-    // AccessType
     this.type = type;
-    // AccessLevel
     this.requestedAccessLevel = requestedAccessLevel;
   }
 

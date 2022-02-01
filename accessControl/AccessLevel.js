@@ -23,7 +23,7 @@ module.exports = class AccessLevel {
   }
 
   toString() {
-    return this.values[this.numericalLevel];
+    return AccessLevel.values[this.numericalLevel];
   }
 
   isGreaterThan(accessLevel) {

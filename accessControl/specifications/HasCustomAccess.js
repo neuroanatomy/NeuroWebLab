@@ -1,12 +1,15 @@
 const {getUserAccessLevel} = require('../helpers');
 
 module.exports = class HasCustomAccess {
+
+  /**
+   * @param {String} userID User Identifier
+   * @param {"collaborators" | "annotations" | "files"} type The access type
+   * @param {AccessLevel} requestedAccessLevel An AccessLevel instance
+   */
   constructor(userID, type, requestedAccessLevel) {
-    // user identifier
     this.userID = userID;
-    // AccessType
     this.type = type;
-    // AccessLevel
     this.requestedAccessLevel = requestedAccessLevel;
   }
 

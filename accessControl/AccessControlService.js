@@ -2,6 +2,7 @@ const _ = require('lodash');
 const spec = require('./specifications');
 const AccessType = require('./AccessType');
 const AccessLevel = require('./AccessLevel');
+const {getUserAccessLevel} = require('./helpers');
 
 module.exports = class AccessControlService {
   static #hasAccess(accessType, requestedAccessLevel, project, userId) {
@@ -12,7 +13,7 @@ module.exports = class AccessControlService {
       new spec.HasCustomAccess(userId, accessType, requestedAccessLevel)
     ];
 
-    return _.some(permissionsSpecs, (s) => s.isSatisfiedBy(project));
+    return permissionsSpecs.some((s) => s.isSatisfiedBy(project));
   }
 
   static hasAccess = _.curry(AccessControlService.#hasAccess);
@@ -35,5 +36,22 @@ module.exports = class AccessControlService {
   static canEditFiles = AccessControlService.hasFilesAccess(AccessLevel.EDIT);
   static canAddFiles = AccessControlService.hasFilesAccess(AccessLevel.ADD);
   static canRemoveFiles = AccessControlService.hasAnnotationsAccess(AccessLevel.REMOVE);
+
+  /**
+   * Retrieve access level for given user or default to the publicly-defined access level
+   *
+   * @param {Object} project The project object
+   * @param {String} userID User Identifier
+   * @param {"collaborators" | "annotations" | "files"} accessType The access type of the
+   * @returns {AccessLevel} The access level
+   */
+  static getUserOrPublicAccessLevel(project, userID, accessType) {
+    try {
+      return getUserAccessLevel(project, userID, accessType);
+    } catch (e) {
+      return getUserAccessLevel(project, 'anyone', accessType);
+    }
+  }
+
 
 };
