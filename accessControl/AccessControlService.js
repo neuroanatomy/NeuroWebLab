@@ -31,4 +31,9 @@ module.exports = class AccessControlService {
   static canAddAnnotations = AccessControlService.hasAnnotationsAccess(AccessLevel.ADD);
   static canRemoveAnnotations = AccessControlService.hasAnnotationsAccess(AccessLevel.REMOVE);
 
+  static canViewFiles = AccessControlService.hasFilesAccess(AccessLevel.VIEW);
+  static canEditFiles = AccessControlService.hasFilesAccess(AccessLevel.EDIT);
+  static canAddFiles = AccessControlService.hasFilesAccess(AccessLevel.ADD);
+  static canRemoveFiles = AccessControlService.hasAnnotationsAccess(AccessLevel.REMOVE);
+
 };

@@ -11,8 +11,7 @@ module.exports = class AccessLevel {
 
   constructor(level) {
     const index = AccessLevel.values.indexOf(level);
-    const maxValue = AccessLevel.values.length - 1;
-    this.numericalLevel = Math.max(0, Math.min(index, maxValue));
+    this.numericalLevel = Math.max(0, index);
   }
 
   static fromInt(level) {
