@@ -53,5 +53,31 @@ module.exports = class AccessControlService {
     }
   }
 
+  /**
+   * Check if user can update a project given his rights and modify newProject accordingly.
+   * @param {Object} newProject The project to check
+   * @param {Object} oldProject The original project to check against
+   * @param {String} userID The user identifier
+   * @returns {Array<String>} Type of changes that were discarded ("collaborators" | "annotations" | "files")
+   */
+  static preventUnauthorizedUpdates(newProject, oldProject, userID) {
+    const ignoredChanges = [];
+
+    [AccessType.COLLABORATORS, AccessType.FILES, AccessType.ANNOTATIONS].forEach((type) => {
+      const checkAccessType = AccessControlService.hasAccess(type);
+      const canAdd = checkAccessType(AccessLevel.ADD);
+      const canRemove = checkAccessType(AccessLevel.REMOVE);
+      if (
+        (newProject[type].list.length > oldProject[type].list.length && !canAdd(oldProject, userID)) ||
+        (newProject[type].list.length < oldProject[type].list.length && !canRemove(oldProject, userID))
+      ) {
+        ignoredChanges.push(type);
+        newProject[type].list = oldProject[type].list;
+      }
+    });
+
+    return ignoredChanges;
+  }
+
 
 };
