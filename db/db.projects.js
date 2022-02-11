@@ -135,7 +135,7 @@ const queryUserProjects = (requestedUser) => new Promise((resolve, reject) => {
     $or: [
       {owner: requestedUser},
       {
-        "collaborators.list": {
+        'collaborators.list': {
           $elemMatch: user}}
     ],
     backup: {$exists: false}
@@ -161,8 +161,8 @@ const searchProjects = (query) => new Promise((resolve, reject) => {
   }
   db.get(projectsCollection)
     .find(
-      {"shortname": { '$regex': query.q } },
-      {fields: ["shortname", "name"], limit: 10 }
+      {'shortname': { '$regex': query.q } },
+      {fields: ['shortname', 'name'], limit: 10 }
     )
     .then(resolve)
     .catch(reject);

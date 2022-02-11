@@ -13,6 +13,9 @@ module.exports = {
      * @returns {AccessLevel} An AccessLevel instance
      */
   getUserAccessLevel(project, userID, accessType) {
+    if (project.owner === userID) {
+      return AccessLevel.REMOVE;
+    }
     if (_.isEmpty(project.collaborators.list)) {
       throw new Error('Project has an empty collaborators list');
     }
