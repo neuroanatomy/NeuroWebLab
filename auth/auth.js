@@ -5,7 +5,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'a mi no me gusta la sémol
 
 const github = require('./github');
 const local = require('./local');
-const {getTokenEndPoint} = require('./token');
+const { getTokenEndPoint } = require('./token');
 
 const ensureAuthenticated = (req, res, next) => {
   if (req.isAuthenticated()) {
@@ -16,13 +16,14 @@ const ensureAuthenticated = (req, res, next) => {
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
-const init = ({app, MONGO_DB, dirname, usernameField}) => {
+const init = ({ app, db, dirname, usernameField }) => {
+
   app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
-      mongoUrl: `mongodb://${MONGO_DB}`,
+      client: db.mongoDB()._client,
       touchAfter: 24 * 3600 // time period in seconds
     })
   }));
@@ -48,24 +49,24 @@ const init = ({app, MONGO_DB, dirname, usernameField}) => {
   app.set('loginMethods', []);
 
   // add github login strategy
-  github.init({app, dirname, usernameField});
+  github.init({ app, dirname, usernameField });
 
   // add local login strategy
-  if(process.env.LOCALSIGNIN && process.env.LOCALSIGNIN === 'true') {
-    local({app, usernameField});
+  if (process.env.LOCALSIGNIN && process.env.LOCALSIGNIN === 'true') {
+    local({ app, usernameField });
   }
 
   // add token auth endpoint
   app.get('/token', getTokenEndPoint);
 
   /* simple demo */
-  app.get('/secure-route-example', ensureAuthenticated, function (req, res) { res.send("access granted"); });
+  app.get('/secure-route-example', ensureAuthenticated, function (req, res) { res.send('access granted'); });
 
   app.get('/loggedIn', function (req, res) {
     if (req.isAuthenticated()) {
-      res.send({loggedIn: true, username: req.user.username});
+      res.send({ loggedIn: true, username: req.user.username });
     } else {
-      res.send({loggedIn: false});
+      res.send({ loggedIn: false });
     }
   });
 };
