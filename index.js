@@ -1,7 +1,7 @@
 const auth = require('./auth/auth');
 const db = require('./db/db');
 const accessControl = require('./accessControl');
-const {init: initTokenAuth, authTokenMiddleware, getTokenEndPoint} = require('./auth/token');
+const { init: initTokenAuth, authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 let usernameField;
@@ -11,7 +11,7 @@ const checkAnyoneUser = () => {
   const query = {};
   query[usernameField] = 'anyone';
   // const query = {username: 'anyone'};
-  console.log({fn: 'checkAnyoneUser', query});
+  console.log({ fn: 'checkAnyoneUser', query });
 
   db.queryUser(query)
     .then((res) => {
@@ -33,7 +33,7 @@ const version = () => 'v0.0.1';
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
-const init = ({
+const init = async ({
   app,
   MONGO_DB,
   dirname,
@@ -44,9 +44,9 @@ const init = ({
 }) => {
   usernameField = newUsernameField;
 
-  console.log({MONGO_DB});
+  console.log({ MONGO_DB });
 
-  db.init({
+  await db.init({
     MONGO_DB,
     overwriteMongoPath: null,
     callback: checkAnyoneUser,
@@ -55,11 +55,9 @@ const init = ({
     projectsCollection,
     annotationsCollection
   });
-
   app.db = db;
-
-  initTokenAuth({usernameField});
-  auth.init({app, MONGO_DB, dirname, usernameField});
+  initTokenAuth({ usernameField });
+  auth.init({ app, db, dirname, usernameField });
 };
 
 module.exports = {

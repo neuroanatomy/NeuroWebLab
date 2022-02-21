@@ -10,7 +10,7 @@ let connected = false;
 const mongoDB = () => db;
 
 const version = () => {
-  console.log("db v0.0.1");
+  console.log('db v0.0.1');
 };
 
 /**
@@ -33,18 +33,18 @@ const init = ({
   console.log(`connecting to mongodb at: ${overwriteMongoPath || MONGO_DB}`);
   db = monk(overwriteMongoPath || MONGO_DB);
 
-  db.then(() => {
+  return db.then(() => {
     connected = true;
 
     console.log('connected successfully');
 
     /* variables used for compatibility */
-    dbToken.init({db});
-    dbUsers.init({db, usernameField, usersCollection, projectsCollection, checkHealth});
-    dbProjects.init({db, projectsCollection, checkHealth});
-    dbAnnotations.init({db, annotationsCollection, checkHealth});
+    dbToken.init({ db });
+    dbUsers.init({ db, usernameField, usersCollection, projectsCollection, checkHealth });
+    dbProjects.init({ db, projectsCollection, checkHealth });
+    dbAnnotations.init({ db, annotationsCollection, checkHealth });
 
-    if(typeof callback !== 'undefined') {
+    if (typeof callback !== 'undefined') {
       return callback();
     }
   })
