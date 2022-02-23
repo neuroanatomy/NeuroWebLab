@@ -123,7 +123,7 @@ const searchUsers = (query) => new Promise((resolve, reject) => {
 
   // const user = {username: {"$regex": query.q}};
   const user = {};
-  user[usernameField] = {"$regex": query.q};
+  user[usernameField] = {'$regex': query.q};
 
   // const fields = ['username', 'name']
   const fields = [usernameField, 'name'];

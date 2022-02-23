@@ -39,10 +39,10 @@ const init = ({
     console.log('connected successfully');
 
     /* variables used for compatibility */
-    dbToken.init({ db });
-    dbUsers.init({ db, usernameField, usersCollection, projectsCollection, checkHealth });
-    dbProjects.init({ db, projectsCollection, checkHealth });
-    dbAnnotations.init({ db, annotationsCollection, checkHealth });
+    dbToken.init({db});
+    dbUsers.init({db, usernameField, usersCollection, projectsCollection, checkHealth});
+    dbProjects.init({db, usernameField, projectsCollection, checkHealth});
+    dbAnnotations.init({db, annotationsCollection, checkHealth});
 
     if (typeof callback !== 'undefined') {
       return callback();
