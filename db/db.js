@@ -75,6 +75,6 @@ module.exports = {
   queryUserProjects: dbProjects.queryUserProjects,
   searchProjects: dbProjects.searchProjects,
   findAnnotations: dbAnnotations.findAnnotations,
-  updateAnnotations: dbAnnotations.updateAnnotation,
-  insertAnnotations: dbAnnotations.updateAnnotation
+  updateAnnotations: dbAnnotations.updateAnnotations,
+  insertAnnotations: dbAnnotations.insertAnnotations
 };

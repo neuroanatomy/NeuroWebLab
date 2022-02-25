@@ -16,20 +16,15 @@ const findAnnotations = async (searchQuery, backup) => {
 
   // include backups
   let query;
-  if(typeof backup === "undefined" || backup === false) {
+  if (typeof backup === 'undefined' || backup === false) {
     query = Object.assign({}, searchQuery, { backup: { $exists: false } });
   } else {
     query = Object.assign({}, searchQuery);
   }
 
-  let annotations;
-  try {
-    annotations = await db.get(annotationsCollection).find(query);
-  } catch(err) {
-    throw new Error(err);
-  }
+  const annotations = await db.get(annotationsCollection).find(query);
 
-  if(annotations) {
+  if (annotations) {
     return annotations;
   }
 
@@ -42,7 +37,7 @@ const findAnnotations = async (searchQuery, backup) => {
   * @param {object} options Object with options: {upsert: <boolean>, multi: <boolean>}
   * @returns {Promise} to resolve when saving is complete
   */
-const updateAnnotations = async ({query, update, options}) => {
+const updateAnnotations = async ({ query, update, options }) => {
   if (!checkHealth()) {
     throw new Error('db connection not healthy');
   }
