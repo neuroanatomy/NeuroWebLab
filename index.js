@@ -1,6 +1,7 @@
 const auth = require('./auth/auth');
 const db = require('./db/db');
 const accessControl = require('./accessControl');
+const Configuration = require('./Configuration');
 const { init: initTokenAuth, authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
@@ -45,6 +46,13 @@ const init = async ({
   usernameField = newUsernameField;
 
   console.log({ MONGO_DB });
+
+  Configuration.getInstance().setProperties({
+    usernameField,
+    usersCollection,
+    projectsCollection,
+    annotationsCollection
+  });
 
   await db.init({
     MONGO_DB,
