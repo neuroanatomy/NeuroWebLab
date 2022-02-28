@@ -1,5 +1,6 @@
 const AccessLevel = require('../AccessLevel');
 const _ = require('lodash');
+const Configuration = require('../../Configuration');
 
 module.exports = {
 
@@ -13,13 +14,14 @@ module.exports = {
      * @returns {AccessLevel} An AccessLevel instance
      */
   getUserAccessLevel(project, userID, accessType) {
+    const { usernameField } = Configuration.getInstance();
     if (project.owner === userID) {
       return AccessLevel.REMOVE;
     }
     if (_.isEmpty(project.collaborators.list)) {
       throw new Error('Project has an empty collaborators list');
     }
-    const user = project.collaborators.list.find((c) => c.userID === userID);
+    const user = project.collaborators.list.find((c) => c[usernameField] === userID || c.userID === userID);
     if (_.isNil(user)) {
       throw new Error(`Collaborator ${userID} not found`);
     }
