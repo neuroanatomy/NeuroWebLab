@@ -66,6 +66,7 @@ module.exports = {
   queryUser: dbUsers.queryUser,
   updateUser: dbUsers.updateUser,
   upsertUser: dbUsers.upsertUser,
+  searchUsers: dbUsers.searchUsers,
   addProject: dbProjects.addProject,
   deleteProject: dbProjects.deleteProject,
   updateProject: dbProjects.updateProject,
