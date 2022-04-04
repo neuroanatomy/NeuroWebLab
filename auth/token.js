@@ -2,11 +2,9 @@ const tokenFromEnv = process.env.TOKEN_DURATION && Number(process.env.TOKEN_DURA
 
 const TOKEN_DURATION = (tokenFromEnv > 0 && tokenFromEnv) || 24 * (1000 * 3600);
 
-let usernameField = '';
-
 const getTokenEndPoint = (req, res) => {
-  const {db} = req.app;
-  const {user} = req;
+  const { db } = req.app;
+  const { user } = req;
 
   /**
      * TODO
@@ -34,7 +32,7 @@ const getTokenEndPoint = (req, res) => {
     // expiration date: now plus tokenDuration milliseconds
     expiryDate: new Date(now.getTime() + TOKEN_DURATION),
     // record the username
-    username: user[usernameField]
+    username: user.username
   };
 
   // store it in the database for the user
@@ -61,14 +59,14 @@ const authTokenMiddleware = (req, res, next) => {
     return;
   }
 
-  const {db} = req.app;
+  const { db } = req.app;
 
   if (!db) {
     return next();
   }
 
   db.findToken(theToken)
-    .then( (obj) => {
+    .then((obj) => {
       if (obj) {
         // Check token expiry date
         const now = new Date();
@@ -87,18 +85,13 @@ const authTokenMiddleware = (req, res, next) => {
       }
       next();
     })
-    .catch( (err) => {
+    .catch((err) => {
       console.error(err);
       next();
     });
 };
 
-const init = ({usernameField: newUsernameField}) => {
-  usernameField = newUsernameField;
-};
-
 module.exports = {
-  init,
   authTokenMiddleware,
   getTokenEndPoint
 };

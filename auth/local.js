@@ -15,6 +15,8 @@ module.exports = ({ app, usernameField }) => {
       query[usernameField] = username;
       app.db.queryUser(query)
         .then((user) => {
+          // put the same username field in the request object as for github authentication
+          user.username = user[usernameField];
 
           /* bcrypt -> more secure */
           bcrypt.compare(password, user.passhash)
