@@ -2,7 +2,7 @@ const auth = require('./auth/auth');
 const db = require('./db/db');
 const accessControl = require('./accessControl');
 const Configuration = require('./Configuration');
-const { init: initTokenAuth, authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
+const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 let usernameField;
@@ -64,7 +64,6 @@ const init = async ({
     annotationsCollection
   });
   app.db = db;
-  initTokenAuth({ usernameField });
   auth.init({ app, db, dirname, usernameField });
 };
 
