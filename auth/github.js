@@ -17,7 +17,7 @@ const upsertUser = (req, res) => {
     // username: req.user.username,
     name: req.user.displayName, // github name (optional)
     url: req.user._json.blog,
-    brainboxURL: "/user/" + req.user.username,
+    brainboxURL: '/user/' + req.user.username,
     avatarURL: req.user._json.avatar_url,
     joined: (new Date()).toJSON()
   };
@@ -63,7 +63,7 @@ const init = ({app: newApp, dirname, usernameField: newUsernameField}) => {
         text : 'Log in with GitHub'
       }));
   } catch (err) {
-    console.log("./app/auth/github.js, github-key.json missing or parsing github-keys.json and setting route error", err);
+    console.log('./app/auth/github.js, github-key.json missing or parsing github-keys.json and setting route error', err);
   }
 };
 
