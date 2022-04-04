@@ -16,21 +16,12 @@ if (!mongoDbPath) {
 
 const app = express();
 const db = require('../db/db');
+let testServer;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 const usernameField = 'nickname';
 const usersCollection = 'user';
 const projectsCollection = 'project';
-
-db.init({
-  app,
-  MONGO_DB: mongoDbPath,
-  dirname: __dirname,
-  usernameField,
-  usersCollection,
-  projectsCollection
-});
-app.db = db;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -47,7 +38,17 @@ describe('Mocha Started', () => {
 
 describe('testing local.js', () => {
 
-  before(() => {
+  before(async () => {
+    await db.init({
+      app,
+      MONGO_DB: mongoDbPath,
+      dirname: __dirname,
+      usernameField,
+      usersCollection,
+      projectsCollection
+    });
+    app.db = db;
+
     app.use(session({
       secret : SESSION_SECRET || 'temporary secret',
       resave : false,
@@ -68,7 +69,12 @@ describe('testing local.js', () => {
     app.get('/', (req, res) => {
       res.send().status(200);
     });
-    app.listen(port, () => console.log(`app listening at port ${port}`));
+    testServer = app.listen(port, () => console.log(`app listening at port ${port}`));
+  });
+
+  after(() => {
+    db.mongoDB().close();
+    testServer.close();
   });
 
   it(`app listening at port ${port} correctly`, (done) => {

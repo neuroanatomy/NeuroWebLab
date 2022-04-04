@@ -6,9 +6,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: npm install
-      - run: eslint .
+      - name: Run ESLint
+        run: $(npm bin)/eslint .
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
@@ -18,5 +20,9 @@ jobs:
         with:
           mongodb-version: 4.2
       - run: npm install
+      - run: npm install why-is-node-running
       - name: Run tests
-        run: npm run test
+        run: |
+          MONGODB_TEST='127.0.0.1:27017/mocha_test' $(npm bin)/mocha */*.spec.js
+          ps
+          ps aux

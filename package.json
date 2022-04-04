@@ -4,7 +4,7 @@
   "description": "NeuroWebLab backend",
   "main": "index.js",
   "scripts": {
-    "test": "cross-env MONGODB_TEST='127.0.0.1:27017/mocha_test' nyc mocha --exit */*.spec.js"
+    "test": "cross-env MONGODB_TEST='127.0.0.1:27017/mocha_test' nyc mocha */*.spec.js"
   },
   "repository": {
     "type": "git",

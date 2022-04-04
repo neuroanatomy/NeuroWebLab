@@ -13,15 +13,6 @@ const usersCollection = 'users';
 const projectsCollection = 'projects';
 // const annotationsCollection = 'annotations';
 
-db.init({
-  MONGO_DB: mongoDbPath,
-  overwriteMongoPath: null,
-  callback: () => console.log('db callback'),
-  usernameField,
-  usersCollection,
-  projectsCollection
-});
-
 // const garbageDb = require('./db');
 // garbageDb.init({
 //     MONGO_DB: 'GARBAGE_MONGO:27017/GARBAGE_MONGO',
@@ -127,7 +118,16 @@ describe('Mocha Started', () => {
 });
 
 describe('testing db.js', () => {
-  before(() => {
+  before(async () => {
+    await db.init({
+      MONGO_DB: mongoDbPath,
+      overwriteMongoPath: null,
+      callback: () => console.log('db callback'),
+      usernameField,
+      usersCollection,
+      projectsCollection
+    });
+
     db.mongoDB()._db.dropDatabase();
   });
 
