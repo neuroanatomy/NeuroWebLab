@@ -1,12 +1,9 @@
-/* eslint-disable max-statements */
-/* eslint-disable no-unused-expressions */
-/* eslint-disable no-undef */
 const assert = require('assert');
 const express = require('express');
 const request = require('request');
 const chai = require('chai');
 const sinon = require('sinon');
-const {expect} = chai;
+const { expect } = chai;
 const { authTokenMiddleware, getTokenEndPoint } = require('./token');
 
 describe('mocha works', () => {
@@ -18,14 +15,14 @@ describe('mocha works', () => {
 describe('sinon works properly', () => {
   const stub = sinon.stub();
   it('works properly', () => {
-    expect(stub.called).to.be.false;
+    expect(stub.called).to.be.equal(false);
     stub();
-    expect(stub.called).to.be.true;
+    expect(stub.called).to.be.equal(true);
   });
 
   const promiseStub = sinon.stub();
   it('promises works properly', (done) => {
-    expect(promiseStub.called).to.be.false;
+    expect(promiseStub.called).to.be.equal(false);
     promiseStub.resolves('apple');
     promiseStub()
       .then((result) => {
@@ -42,7 +39,7 @@ describe('sinon works properly', () => {
 let _server;
 
 const port = process.env.MOCHATEST_PORT || 10002;
-const hostname = `http://localhost`;
+const hostname = 'http://localhost';
 
 const user = {
   username: 'bob101'
@@ -56,28 +53,28 @@ describe('if db is not defined, reponses are as expected', () => {
     _server = app.listen(port, () => console.log(`application listening on port ${port}`));
   });
   after(() => {
-    if(_server) { _server.close(); }
+    if (_server) { _server.close(); }
   });
   it('if db not initialised, GET /token should turn 500', (done) => {
 
     request(`${hostname}:${port}/token`, (err, res /*, body*/) => {
-      expect(err).to.be.null;
-      expect(res).to.be.not.null;
+      expect(err).to.be.equal(null);
+      expect(res).to.not.equal(null);
       expect(res.statusCode).to.be.equal(500);
       done();
     });
   });
 });
 
-const generateToken = ({ token='token name', expiryDate=new Date(), username='bob' }) => ({
+const generateToken = ({ token = 'token name', expiryDate = new Date(), username = 'bob' }) => ({
   token,
   expiryDate,
   username
 });
 
 const spy = sinon.spy((req, res) => {
-  const {isTokenAuthenticated, tokenUsername} = req;
-  res.status(200).json({isTokenAuthenticated, tokenUsername});
+  const { isTokenAuthenticated, tokenUsername } = req;
+  res.status(200).json({ isTokenAuthenticated, tokenUsername });
 });
 
 describe('get token when not logged in works as intended', () => {
@@ -114,8 +111,8 @@ describe('get token when not logged in works as intended', () => {
 
   it('if not logged in, GET /token should return 401', (done) => {
     request(`${hostname}:${port}/token`, (err, res /*, body*/) => {
-      expect(err).to.be.null;
-      expect(res).to.be.not.null;
+      expect(err).to.be.equal(null);
+      expect(res).to.not.equal(null);
       expect(res.statusCode).to.be.equal(401);
       expect(addTokenFake.called).to.equal(false);
       done();
@@ -124,13 +121,13 @@ describe('get token when not logged in works as intended', () => {
 
   it('if not logged in, middlewhare should not populate token properties', (done) => {
     request(`${hostname}:${port}/spy`, (err /*, res, body*/) => {
-      if(err) {
+      if (err) {
         console.error(err);
       }
 
       assert(spy.called);
       const arg = spy.getCall(0);
-      const [{isTokenAuthenticated, tokenUsername}] = arg.args;
+      const [{ isTokenAuthenticated, tokenUsername }] = arg.args;
       expect(Boolean(isTokenAuthenticated)).to.be.equal(false);
       expect(Boolean(tokenUsername)).to.be.equal(false);
       done();
@@ -194,8 +191,8 @@ describe('get token when logged in works as intended', () => {
   it('if user is logged in, GET /token should return token', (done) => {
     setUserFlag = true;
     request(`${hostname}:${port}/token`, (err, res /*, body*/) => {
-      expect(err).to.be.null;
-      expect(res).to.be.not.null;
+      expect(err).to.be.equal(null);
+      expect(res).to.not.equal(null);
       expect(res.statusCode).to.be.equal(200);
       expect(addTokenStub.called).to.equal(true);
       done();
@@ -207,12 +204,12 @@ describe('get token when logged in works as intended', () => {
     expect(spy.called).to.be.equal(false);
     expect(findTokenStub.called).to.be.equal(false);
     request(`${hostname}:${port}/spy?token=${unexpiredToken.token}`, (err, res /*, body*/) => {
-      expect(err).to.be.null;
-      expect(findTokenStub.called).to.be.true;
+      expect(err).to.be.equal(null);
+      expect(findTokenStub.called).to.be.equal(true);
       expect(res.statusCode).to.be.equal(200);
       assert(spy.called);
       const arg = spy.getCall(0);
-      const [{isTokenAuthenticated, tokenUsername, user: theUser}] = arg.args;
+      const [{ isTokenAuthenticated, tokenUsername, user: theUser }] = arg.args;
       expect(isTokenAuthenticated).to.be.equal(true);
       expect(tokenUsername).to.be.equal('bob102');
       expect(theUser).to.be.deep.equal({ username: 'bob102' });
@@ -229,15 +226,15 @@ describe('get token when logged in works as intended', () => {
          */
     findTokenStub();
     request(`${hostname}:${port}/spy?token=${expiredToken.token}`, (err, res /*, body*/) => {
-      expect(err).to.be.null;
-      expect(findTokenStub.called).to.be.true;
+      expect(err).to.be.equal(null);
+      expect(findTokenStub.called).to.be.equal(true);
       expect(res.statusCode).to.be.equal(200);
       assert(spy.called);
       const arg = spy.getCall(0);
-      const [{isTokenAuthenticated, tokenUsername, user: theUser}] = arg.args;
+      const [{ isTokenAuthenticated, tokenUsername, user: theUser }] = arg.args;
       expect(isTokenAuthenticated).to.be.equal(false);
       expect(tokenUsername).to.be.equal('bob101');
-      expect(Boolean(theUser)).to.be.false;
+      expect(Boolean(theUser)).to.be.equal(false);
       done();
     });
   });
