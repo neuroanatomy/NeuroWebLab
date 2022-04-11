@@ -1,4 +1,4 @@
-const assert = require('assert');
+const { assert } = require('chai');
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const express = require('express');
@@ -50,9 +50,9 @@ describe('testing local.js', () => {
     app.db = db;
 
     app.use(session({
-      secret : SESSION_SECRET || 'temporary secret',
-      resave : false,
-      saveUninitialized : false
+      secret: SESSION_SECRET || 'temporary secret',
+      resave: false,
+      saveUninitialized: false
     }));
     app.use(passport.initialize());
     app.use(passport.session());
@@ -65,7 +65,7 @@ describe('testing local.js', () => {
       done(null, user);
     });
 
-    local({app, usernameField});
+    local({ app, usernameField });
     app.get('/', (req, res) => {
       res.send().status(200);
     });
@@ -92,8 +92,8 @@ describe('testing local.js', () => {
       .post('/localSignup')
       .type('json')
       .send({
-        username : 'bobjane',
-        password : 'passinginterest'
+        username: 'bobjane',
+        password: 'passinginterest'
       })
       .end((err, res) => {
         console.error(err);
@@ -107,12 +107,13 @@ describe('testing local.js', () => {
       .post('/localLogin')
       .type('form')
       .send({
-        username : 'bobjane',
-        password : 'passinginterest'
+        username: 'bobjane',
+        password: 'passinginterest'
       })
+      .redirects(0)
       .end((err, res) => {
         console.error(err);
-        assert.strictEqual(res.status, 200);
+        assert.oneOf(res.status, [200, 301, 302]);
         done();
       });
   });

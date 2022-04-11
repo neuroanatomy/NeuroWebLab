@@ -5,6 +5,7 @@ const path = require('path');
 const assert = require('assert');
 const chai = require('chai');
 const express = require('express');
+const monk = require('monk');
 
 const { expect } = chai;
 
@@ -32,28 +33,23 @@ describe('mock-fs works properly', () => {
     mock.restore();
   });
 
-  it('fetches mocked test.txt properly', (done) => {
-    fs.readFile(path.join(__dirname, 'test.txt'), 'utf-8', (err, data) => {
-      expect(err).to.be.equals(null);
-      expect(data).to.be.equals(testTxt);
-      done();
-    });
+  it('fetches mocked test.txt properly', async () => {
+    const data = await fs.promises.readFile(path.join(__dirname, 'test.txt'), 'utf-8');
+    expect(data).to.be.equals(testTxt);
   });
 
-  it('should throw err when fetching non existent file', (done) => {
-    fs.readFile(path.join(__dirname, 'not_exist_txt'), 'utf-8', (err /*, data*/) => {
-      expect(err).to.be.not.equal(null);
+  it('should throw err when fetching non existent file', async () => {
+    try {
+      await fs.promises.readFile(path.join(__dirname, 'not_exist_txt'), 'utf-8');
+      expect(true, 'promise should fail').eq(false);
+    } catch (err) {
       expect(err.code).to.be.equal('ENOENT');
-      done();
-    });
+    }
   });
 
-  it('mock-fs fetches github-keys.json', (done) => {
-    fs.readFile(path.join(__dirname, 'github-keys.json'), 'utf-8', (err, data) => {
-      expect(err).to.be.equal(null);
-      expect(data).to.be.equal(JSON.stringify(githubKeys));
-      done();
-    });
+  it('mock-fs fetches github-keys.json', async () => {
+    const data = await fs.promises.readFile(path.join(__dirname, 'github-keys.json'), 'utf-8');
+    expect(data).to.be.equal(JSON.stringify(githubKeys));
   });
 });
 
@@ -65,8 +61,25 @@ const auth = require('./auth');
 
 const mongoDbPath = process.env.MONGODB_TEST;
 if (!mongoDbPath) { throw new Error('MONGODB_TEST must be explicitly set to avoid overwriting production'); }
+let db, monkDb;
 
 describe('auth.js', () => {
+
+  before((done) => {
+    monkDb = monk(mongoDbPath);
+    monkDb.then(() => {
+      db = {
+        mongoDB () {
+          return monkDb;
+        }
+      };
+      done();
+    });
+  });
+
+  after(() => {
+    db.mongoDB().close();
+  });
 
   afterEach(() => {
     mock.restore();
@@ -76,7 +89,7 @@ describe('auth.js', () => {
     it('without github-keys.json, app.loginMethods will not be populated with github methods', () => {
       const app = express();
       // mock({});
-      auth.init({ app, MONGO_DB: mongoDbPath, dirname: './', usernameField: 'nickname' });
+      auth.init({ app, db, dirname: './', usernameField: 'nickname' });
       const loginMethods = app.get('loginMethods');
       expect(containGithubLoginMethod(loginMethods)).to.be.equal(false);
     });
@@ -84,7 +97,7 @@ describe('auth.js', () => {
     it('with mal-formed github-key.json, app.loginMethods will not be populated with github methods', () => {
       mock(getMockfsConfig(__dirname, 'github-keys.json', testTxt));
       const app = express();
-      auth.init({ app, MONGO_DB: mongoDbPath, dirname: __dirname, usernameField: 'nickname' });
+      auth.init({ app, db, dirname: __dirname, usernameField: 'nickname' });
       const loginMethods = app.get('loginMethods');
       expect(containGithubLoginMethod(loginMethods)).to.be.equal(false);
     });
@@ -92,7 +105,7 @@ describe('auth.js', () => {
     it('with valid github-keys.json, app.loginMethods will be populated with github methods', () => {
       mock(getMockfsConfig(__dirname, 'github-keys.json', JSON.stringify(githubKeys)));
       const app = express();
-      auth.init({ app, MONGO_DB: mongoDbPath, dirname: __dirname, usernameField: 'nickname' });
+      auth.init({ app, db, dirname: __dirname, usernameField: 'nickname' });
       const loginMethods = app.get('loginMethods');
       expect(containGithubLoginMethod(loginMethods)).to.be.equal(true);
     });
@@ -100,9 +113,13 @@ describe('auth.js', () => {
 
   describe('local signin strategy works', () => {
 
+    beforeEach(() => {
+      mock(getMockfsConfig(__dirname, 'github-keys.json', JSON.stringify(githubKeys)));
+    });
+
     it('when LOCALSIGNIN=undefined, local signin does not exist', () => {
       const app = express();
-      auth.init({ app, MONGO_DB: mongoDbPath, dirname: __dirname, usernameField: 'nickname' });
+      auth.init({ app, db, dirname: __dirname, usernameField: 'nickname' });
       const loginMethods = app.get('loginMethods');
       expect(containLocalLoginMethod(loginMethods)).to.be.equal(false);
     });
@@ -110,7 +127,7 @@ describe('auth.js', () => {
     it('when LOCALSIGNIN=false, local signin does not exist', () => {
       process.env.LOCALSIGNIN = false;
       const app = express();
-      auth.init({ app, MONGO_DB: mongoDbPath, dirname: __dirname, usernameField: 'nickname' });
+      auth.init({ app, db, dirname: __dirname, usernameField: 'nickname' });
       const loginMethods = app.get('loginMethods');
       expect(containLocalLoginMethod(loginMethods)).to.be.equal(false);
     });
@@ -118,7 +135,7 @@ describe('auth.js', () => {
     it('when LOCALSIGNIN=true, local signin exists', () => {
       process.env.LOCALSIGNIN = true;
       const app = express();
-      auth.init({ app, MONGO_DB: mongoDbPath, dirname: __dirname, usernameField: 'nickname' });
+      auth.init({ app, db, dirname: __dirname, usernameField: 'nickname' });
       const loginMethods = app.get('loginMethods');
       expect(containLocalLoginMethod(loginMethods)).to.be.equal(true);
     });

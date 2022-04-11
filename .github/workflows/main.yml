@@ -20,9 +20,5 @@ jobs:
         with:
           mongodb-version: 4.2
       - run: npm install
-      - run: npm install why-is-node-running
       - name: Run tests
-        run: |
-          MONGODB_TEST='127.0.0.1:27017/mocha_test' $(npm bin)/mocha */*.spec.js
-          ps
-          ps aux
+        run: npm run test
