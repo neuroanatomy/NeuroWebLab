@@ -4,6 +4,12 @@ module.exports = class IsOwner {
   }
 
   isSatisfiedBy(project) {
-    return this.userId === project.owner;
+    try {
+      return this.userId === project.owner;
+    } catch (e) {
+      console.error(e.message);
+
+      return false;
+    }
   }
 };
