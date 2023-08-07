@@ -119,17 +119,15 @@ const searchUsers = (query) => new Promise((resolve, reject) => {
     return reject(new Error('db connection not healthy'));
   }
 
-  /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
+  const userQuery = {
+    [usernameField]: {'$regex': query.q},
+    disabled: { $ne: true }
+  };
 
-  // const user = {username: {"$regex": query.q}};
-  const user = {};
-  user[usernameField] = {'$regex': query.q};
-
-  // const fields = ['username', 'name']
   const fields = [usernameField, 'name'];
 
   db.get('users')
-    .find(user, {fields, limit: 10})
+    .find(userQuery, {fields, limit: 10})
     .then(resolve)
     .catch(reject);
 });
