@@ -9,6 +9,13 @@ let connected = false;
 
 const mongoDB = () => db;
 
+/**
+ * Returns the native MongoDB db object from the underlying driver.
+ * Use this for code being migrated away from monk.
+ * Once migration is complete, this becomes the primary database accessor.
+ */
+const nativeMongoDB = () => db._db;
+
 const version = () => {
   console.log('db v0.0.1');
 };
@@ -59,6 +66,7 @@ module.exports = {
   version,
   init,
   mongoDB,
+  nativeMongoDB,
   checkHealth,
   addToken: dbToken.addToken,
   findToken: dbToken.findToken,
