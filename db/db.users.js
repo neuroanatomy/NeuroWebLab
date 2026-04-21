@@ -78,7 +78,7 @@ const upsertUser = (user) => new Promise((resolve, reject) => {
   delete user._id;
 
   queryUser(query)
-    .then(() => updateUser(user))
+    .then(() => updateUser({...user, disabled: false}))
     .then(resolve)
     .catch((e) => {
       if(e.message === 'error find one user') {
