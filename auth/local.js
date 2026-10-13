@@ -1,6 +1,7 @@
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcryptjs');
+const { rememberReturnTo, redirectToReturnTo } = require('./returnTo');
 const saltRounds = 10;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
@@ -32,13 +33,12 @@ module.exports = ({ app, usernameField }) => {
 
   app.post(
     '/localLogin',
+    rememberReturnTo,
     passport.authenticate('local', {
       failureRedirect: '/html/localsignin.html'
     }),
-    (req, res) => {
-      res.redirect(301, req.session.returnTo || '/');
-      delete req.session.returnTo;
-    });
+    redirectToReturnTo(301)
+  );
 
   app.post('/localSignup', (req, res) => {
 

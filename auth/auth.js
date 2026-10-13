@@ -39,10 +39,16 @@ const init = ({ app, db, dirname, usernameField }) => {
     done(null, user);
   });
 
-  app.get('/logout', function (req, res) {
-    req.logout();
-    res.redirect(req.session.returnTo || '/');
-    delete req.session.returnTo;
+  // passport >= 0.6: req.logout is asynchronous and regenerates the
+  // session, so read returnTo before logging out
+  app.get('/logout', function (req, res, next) {
+    const { returnTo } = req.session;
+    req.logout((err) => {
+      if (err) {
+        return next(err);
+      }
+      res.redirect(returnTo || '/');
+    });
   });
 
   // initialise strategies array

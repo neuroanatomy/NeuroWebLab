@@ -4,13 +4,14 @@ const fs = require('fs');
 const GithubStrategy = require('passport-github').Strategy;
 const passport = require('passport');
 const path = require('path');
+const { rememberReturnTo, redirectToReturnTo } = require('./returnTo');
 
 let app;
 let usernameField;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
-const upsertUser = (req, res) => {
+const upsertUser = (req, res, next) => {
   // successfully loged in. Check if user is new
 
   const user = {
@@ -24,10 +25,7 @@ const upsertUser = (req, res) => {
   user[usernameField] = req.user.username;
 
   app.db.upsertUser(user)
-    .then(() => {
-      res.redirect(req.session.returnTo || '/');
-      delete req.session.returnTo;
-    })
+    .then(() => next())
     .catch((e) => {
       console.log('db upsert user error', e);
       res.status(500).send(JSON.stringify(e));
@@ -51,8 +49,10 @@ const init = ({app: newApp, dirname, usernameField: newUsernameField}) => {
 
     app.get('/auth/github', passport.authenticate('github'));
     app.get('/auth/github/callback',
+      rememberReturnTo,
       passport.authenticate('github', {failureRedirect: '/'}),
-      upsertUser
+      upsertUser,
+      redirectToReturnTo()
     );
 
     // add strategy to list of loginMethods
