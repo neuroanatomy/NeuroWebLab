@@ -1,6 +1,6 @@
 const assert = require('assert');
 const express = require('express');
-const request = require('request');
+const { listen, close } = require('../test/http');
 const chai = require('chai');
 const sinon = require('sinon');
 const { expect } = chai;
@@ -37,27 +37,35 @@ describe('sinon works properly', () => {
 });
 
 let _server;
+let baseURL;
 
-const port = process.env.MOCHATEST_PORT || 10002;
-const hostname = 'http://localhost';
+/* GET a path on the test server; callback(err, res) as with `request`.
+   The callback runs outside the promise so a failed assertion fails the test. */
+const request = (path, cb) => {
+  fetch(baseURL + path)
+    .then(async (res) => {
+      await res.text();
+
+      return { statusCode: res.status };
+    })
+    .then((res) => setImmediate(() => cb(null, res)), (err) => setImmediate(() => cb(err)));
+};
 
 const user = {
   username: 'bob101'
 };
 
 describe('if db is not defined, reponses are as expected', () => {
-  before(() => {
+  before(async () => {
     const app = express();
     app.use(authTokenMiddleware);
     app.get('/token', getTokenEndPoint);
-    _server = app.listen(port, () => console.log(`application listening on port ${port}`));
+    ({ server: _server, url: baseURL } = await listen(app));
   });
-  after(() => {
-    if (_server) { _server.close(); }
-  });
+  after(() => close(_server));
   it('if db not initialised, GET /token should turn 500', (done) => {
 
-    request(`${hostname}:${port}/token`, (err, res /*, body*/) => {
+    request('/token', (err, res /*, body*/) => {
       expect(err).to.be.equal(null);
       expect(res).to.not.equal(null);
       expect(res.statusCode).to.be.equal(500);
@@ -86,7 +94,7 @@ describe('get token when not logged in works as intended', () => {
   beforeEach(() => {
     spy.resetHistory();
   });
-  before(() => {
+  before(async () => {
     const app = express();
     app.db = {
       addToken: addTokenFake
@@ -98,19 +106,17 @@ describe('get token when not logged in works as intended', () => {
       const { isTokenAuthenticated, tokenUsername } = req;
       res.status(200).json({ isTokenAuthenticated, tokenUsername });
     });
-    _server = app.listen(port, () => console.log(`application listening on port ${port}`));
+    ({ server: _server, url: baseURL } = await listen(app));
   });
 
-  after(() => {
-    if (_server) { _server.close(); }
-  });
+  after(() => close(_server));
 
   afterEach(() => {
     spy.resetHistory();
   });
 
   it('if not logged in, GET /token should return 401', (done) => {
-    request(`${hostname}:${port}/token`, (err, res /*, body*/) => {
+    request('/token', (err, res /*, body*/) => {
       expect(err).to.be.equal(null);
       expect(res).to.not.equal(null);
       expect(res.statusCode).to.be.equal(401);
@@ -120,7 +126,7 @@ describe('get token when not logged in works as intended', () => {
   });
 
   it('if not logged in, middlewhare should not populate token properties', (done) => {
-    request(`${hostname}:${port}/spy`, (err /*, res, body*/) => {
+    request('/spy', (err /*, res, body*/) => {
       if (err) {
         console.error(err);
       }
@@ -162,7 +168,7 @@ describe('get token when logged in works as intended', () => {
     setUserFlag = false;
   });
 
-  before(() => {
+  before(async () => {
     const app = express();
     app.db = {
       addToken: addTokenStub,
@@ -181,16 +187,14 @@ describe('get token when logged in works as intended', () => {
       const { isTokenAuthenticated, tokenUsername } = req;
       res.status(200).json({ isTokenAuthenticated, tokenUsername });
     });
-    _server = app.listen(port, () => console.log(`application listening on port ${port}`));
+    ({ server: _server, url: baseURL } = await listen(app));
   });
 
-  after(() => {
-    if (_server) { _server.close(); }
-  });
+  after(() => close(_server));
 
   it('if user is logged in, GET /token should return token', (done) => {
     setUserFlag = true;
-    request(`${hostname}:${port}/token`, (err, res /*, body*/) => {
+    request('/token', (err, res /*, body*/) => {
       expect(err).to.be.equal(null);
       expect(res).to.not.equal(null);
       expect(res.statusCode).to.be.equal(200);
@@ -203,7 +207,7 @@ describe('get token when logged in works as intended', () => {
 
     expect(spy.called).to.be.equal(false);
     expect(findTokenStub.called).to.be.equal(false);
-    request(`${hostname}:${port}/spy?token=${unexpiredToken.token}`, (err, res /*, body*/) => {
+    request(`/spy?token=${unexpiredToken.token}`, (err, res /*, body*/) => {
       expect(err).to.be.equal(null);
       expect(findTokenStub.called).to.be.equal(true);
       expect(res.statusCode).to.be.equal(200);
@@ -225,7 +229,7 @@ describe('get token when logged in works as intended', () => {
          * burn the first fn call, second one will return the expired token
          */
     findTokenStub();
-    request(`${hostname}:${port}/spy?token=${expiredToken.token}`, (err, res /*, body*/) => {
+    request(`/spy?token=${expiredToken.token}`, (err, res /*, body*/) => {
       expect(err).to.be.equal(null);
       expect(findTokenStub.called).to.be.equal(true);
       expect(res.statusCode).to.be.equal(200);

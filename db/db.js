@@ -13,6 +13,7 @@ const mongoDB = () => db;
  * Returns the native MongoDB db object from the underlying driver.
  * Use this for code being migrated away from monk.
  * Once migration is complete, this becomes the primary database accessor.
+ * @returns {object} The native MongoDB Db object
  */
 const nativeMongoDB = () => db._db;
 

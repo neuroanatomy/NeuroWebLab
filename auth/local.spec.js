@@ -1,13 +1,10 @@
 const { assert } = require('chai');
-const chai = require('chai');
-const chaiHttp = require('chai-http');
+const { listen, close, client } = require('../test/http');
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const local = require('./local');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'a mi no me gusta la sémola';
-
-chai.use(chaiHttp);
 
 const mongoDbPath = process.env.MONGODB_TEST;
 if (!mongoDbPath) {
@@ -17,6 +14,7 @@ if (!mongoDbPath) {
 const app = express();
 const db = require('../db/db');
 let testServer;
+let url;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 const usernameField = 'nickname';
@@ -25,10 +23,6 @@ const projectsCollection = 'project';
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-const server = 'localhost';
-const port = 3002;
-const url = `${server}:${port}`;
 
 describe('Mocha Started', () => {
   it('Mocha works properly', () => {
@@ -69,52 +63,46 @@ describe('testing local.js', () => {
     app.get('/', (req, res) => {
       res.send().status(200);
     });
-    testServer = app.listen(port, () => console.log(`app listening at port ${port}`));
+    ({ server: testServer, url } = await listen(app));
+    await db.mongoDB().get(usersCollection)
+      .remove({});
   });
 
-  after(() => {
-    db.mongoDB().close();
-    testServer.close();
+  after(async () => {
+    await close(testServer);
+    await db.mongoDB().close();
   });
 
-  it(`app listening at port ${port} correctly`, (done) => {
-    chai.request(url)
-      .get('/')
-      .end((err, res) => {
-        console.error(err);
-        assert.strictEqual(res.status, 200);
-        done();
-      });
+  it('app listening correctly', async () => {
+    const res = await client(url).get('/');
+    assert.strictEqual(res.status, 200);
   });
 
-  it('inserts local user signup correctly', (done) => {
-    chai.request(url)
-      .post('/localSignup')
-      .type('json')
-      .send({
+  it('inserts local user signup correctly', async () => {
+    const res = await client(url).post('/localSignup', {
+      json: {
         username: 'bobjane',
         password: 'passinginterest'
-      })
-      .end((err, res) => {
-        console.error(err);
-        assert.strictEqual(res.status, 200);
-        done();
-      });
+      }
+    });
+    assert.strictEqual(res.status, 200);
   });
 
-  it('using correct username and password authenticates correctly', (done) => {
-    chai.request(url)
-      .post('/localLogin')
-      .type('form')
-      .send({
+  it('using correct username and password authenticates correctly', async () => {
+    // /localSignup answers before its insert (fixed in a later patch), so wait for the user
+    for (let i = 0; i < 50; i++) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await db.mongoDB().get(usersCollection)
+        .findOne({ [usernameField]: 'bobjane' })) { break; }
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => { setTimeout(r, 20); });
+    }
+    const res = await client(url).post('/localLogin', {
+      form: {
         username: 'bobjane',
         password: 'passinginterest'
-      })
-      .redirects(0)
-      .end((err, res) => {
-        console.error(err);
-        assert.oneOf(res.status, [200, 301, 302]);
-        done();
-      });
+      }
+    });
+    assert.oneOf(res.status, [200, 301, 302]);
   });
 });
