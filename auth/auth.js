@@ -1,6 +1,6 @@
 const session = require('express-session');
 const passport = require('passport');
-const MongoStore = require('connect-mongo');
+const { MongoStore } = require('connect-mongo');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'a mi no me gusta la sémola';
 
 const github = require('./github');

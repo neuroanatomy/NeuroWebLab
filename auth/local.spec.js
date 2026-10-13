@@ -1,4 +1,5 @@
 const { assert } = require('chai');
+const bcrypt = require('bcryptjs');
 const { listen, close, client } = require('../test/http');
 const express = require('express');
 const session = require('express-session');
@@ -51,6 +52,9 @@ describe('testing local.js', () => {
     app.use(passport.initialize());
     app.use(passport.session());
 
+    // passport is a singleton: forget the serializers other spec files registered
+    passport._serializers = [];
+    passport._deserializers = [];
     passport.serializeUser((user, done) => {
       done(null, user);
     });
@@ -104,5 +108,36 @@ describe('testing local.js', () => {
       }
     });
     assert.oneOf(res.status, [200, 301, 302]);
+    assert.notStrictEqual(res.location, '/html/localsignin.html', 'login failed');
+  });
+
+  it('a wrong password is refused', async () => {
+    const res = await client(url).post('/localLogin', {
+      form: { username: 'bobjane', password: 'wrong' }
+    });
+    assert.strictEqual(res.location, '/html/localsignin.html');
+  });
+
+  describe('hashes written by the native bcrypt still verify (bcryptjs)', () => {
+    // written by bcrypt@5.0.1 (native) on Node 26: bcrypt.hash('correct horse battery staple', 10)
+    const nativeHash = '$2b$10$RdFTpI9EN2h9iYx3s32NTeeT5rUhsXi0SrIzT25pqZFYEJKlEPrtW';
+
+    it('bcryptjs.compare accepts the native $2b$ hash', async () => {
+      assert.strictEqual(await bcrypt.compare('correct horse battery staple', nativeHash), true);
+      assert.strictEqual(await bcrypt.compare('wrong', nativeHash), false);
+    });
+
+    it('a user stored with a native $2b$ hash logs in', async () => {
+      await db.mongoDB().get(usersCollection)
+        .insert({ [usernameField]: 'olduser', strategy: 'local', passhash: nativeHash });
+      const ok = await client(url).post('/localLogin', {
+        form: { username: 'olduser', password: 'correct horse battery staple' }
+      });
+      assert.strictEqual(ok.location, '/');
+      const ko = await client(url).post('/localLogin', {
+        form: { username: 'olduser', password: 'wrong' }
+      });
+      assert.strictEqual(ko.location, '/html/localsignin.html');
+    });
   });
 });

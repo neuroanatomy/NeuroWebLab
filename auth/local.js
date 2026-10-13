@@ -1,6 +1,6 @@
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const saltRounds = 10;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
@@ -18,7 +18,7 @@ module.exports = ({ app, usernameField }) => {
           // put the same username field in the request object as for github authentication
           user.username = user[usernameField];
 
-          /* bcrypt -> more secure */
+          /* bcryptjs reads the $2a$/$2b$ hashes written by the native bcrypt */
           bcrypt.compare(password, user.passhash)
             .then((res) => done(null, res ? user : false))
             .catch((e) => done(e));
@@ -42,7 +42,7 @@ module.exports = ({ app, usernameField }) => {
 
   app.post('/localSignup', (req, res) => {
 
-    /* bcrypt more secrure */
+    /* bcryptjs: pure JS, same hashes as the native bcrypt */
     bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
       if (err) { res.status(500).send(err); } else {
 
