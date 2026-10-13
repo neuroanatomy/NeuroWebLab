@@ -1,20 +1,28 @@
 # Yearly reminder to move all NAAT repos (NeuroWebLab, nwl-components, BrainBox,
-# microdraw) and both production servers to the new Node LTS. Runs on 1 November;
-# opens one issue labelled `node-upgrade`, assigned to vars.NODE_UPGRADE_ASSIGNEES.
+# microdraw) and both production servers to the new Node LTS.
+# Runs on the 1st of every month: every run re-enables this workflow (keepalive, so
+# GitHub doesn't disable the schedule after 60 days without commits). Only the
+# November run (or a manual run with node_check) checks Node and may open one issue
+# labelled `node-upgrade`, assigned to vars.NODE_UPGRADE_ASSIGNEES.
 # Logic and local testing: .github/scripts/yearly-node-upgrade.mjs.
 name: Yearly Node upgrade
 
 on:
   schedule:
-    - cron: '0 8 1 11 *'
+    - cron: '0 8 1 * *'
   workflow_dispatch:
     inputs:
+      node_check:
+        description: 'Run the Node check now, whatever the month (untick for keepalive only)'
+        type: boolean
+        default: true
       dry_run:
         description: 'Dry run: print the issue instead of creating it'
         type: boolean
         default: true
 
 permissions:
+  actions: write
   issues: write
   contents: read
 
@@ -31,11 +39,13 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-      - name: Check Node LTS and open the reminder issue
+      - name: Keepalive, then (November or by hand) check Node LTS and open the reminder issue
         timeout-minutes: 5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Scheduled runs have no inputs: they are never dry runs.
+          # Scheduled runs: NODE_CHECK=auto (November only), never a dry run.
+          # Manual runs: the inputs decide.
+          NODE_CHECK: ${{ github.event_name != 'workflow_dispatch' && 'auto' || inputs.node_check }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           ASSIGNEES: ${{ vars.NODE_UPGRADE_ASSIGNEES }}
         run: node .github/scripts/yearly-node-upgrade.mjs

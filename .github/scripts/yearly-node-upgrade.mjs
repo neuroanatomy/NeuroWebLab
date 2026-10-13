@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 // Yearly Node upgrade reminder (run by .github/workflows/yearly-node-upgrade.yml).
 //
+// 0. Keepalive (every run): re-enables this workflow through the API, so GitHub doesn't
+//    disable the schedule after 60 days without commits. A failure is only a warning.
+//    Then the Node check runs only in November (scheduled runs) or when NODE_CHECK=true
+//    (manual runs); otherwise the run logs "keepalive only" and exits successfully.
 // 1. Finds the newest Node LTS major (nodejs.org/dist/index.json) and compares it
 //    with this repo's .nvmrc.
 // 2. Checks the unofficial linux-x64-glibc-217 builds (needed by the CentOS 7 servers).
 // 3. If a move is due and no open `node-upgrade` issue exists, opens one.
 //
 // Environment:
+//   NODE_CHECK         "true" always runs the Node check, "false" never, "auto" (default)
+//                      only in November (UTC).
+//   WORKFLOW_FILE      workflow to re-enable (default "yearly-node-upgrade.yml").
+//   TODAY              ISO date overriding today's date (for local tests).
 //   DRY_RUN            "true" prints the issue instead of creating it (default "false").
 //   GITHUB_TOKEN       token with issues:write; without it, GitHub calls are skipped (dry run only).
 //   GITHUB_REPOSITORY  owner/repo (set by Actions).
@@ -28,6 +36,8 @@ const {env} = process;
 const dryRun = String(env.DRY_RUN || 'false').toLowerCase() === 'true';
 const token = env.GITHUB_TOKEN || '';
 const repository = env.GITHUB_REPOSITORY || '';
+const nodeCheck = String(env.NODE_CHECK || 'auto').toLowerCase();
+const workflowFile = env.WORKFLOW_FILE || 'yearly-node-upgrade.yml';
 const assignees = (env.ASSIGNEES || '').split(',').map((s) => s.trim().replace(/^@/, ''))
   .filter(Boolean);
 
@@ -77,7 +87,12 @@ async function github(method, path, body) {
     body: body ? JSON.stringify(body) : undefined
   }, { what: `GitHub API ${method} ${path}` });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text.slice(0, 200);
+  }
 
   return { status: res.status, ok: res.ok, data };
 }
@@ -158,9 +173,41 @@ async function summary(text) {
   if (env.GITHUB_STEP_SUMMARY) { await appendFile(env.GITHUB_STEP_SUMMARY, `${text}\n`); }
 }
 
+// Re-enable this workflow so its schedule survives 60 days without commits. Never fails the run.
+async function keepalive() {
+  if (!token || !repository) {
+    console.log('Keepalive: no GITHUB_TOKEN/GITHUB_REPOSITORY, skipped.');
+
+    return;
+  }
+  try {
+    const res = await github('PUT', `/actions/workflows/${workflowFile}/enable`);
+    if (res.ok) {
+      console.log(`Keepalive: workflow ${workflowFile} enabled (HTTP ${res.status}).`);
+    } else {
+      console.log(`::warning::Keepalive: enabling ${workflowFile} failed: HTTP ${res.status} ${JSON.stringify(res.data)}`);
+    }
+  } catch (err) {
+    console.log(`::warning::Keepalive: enabling ${workflowFile} failed: ${err.message}`);
+  }
+}
+
 async function main() {
-  const today = new Date();
-  console.log(`Mode: ${dryRun ? 'dry run (prints the issue, creates nothing)' : 'live'}`);
+  const today = env.TODAY ? new Date(env.TODAY) : new Date();
+  if (Number.isNaN(today.getTime())) {
+    throw new Failure(`TODAY=${env.TODAY} is not a valid date`);
+  }
+
+  await keepalive();
+
+  const november = today.getUTCMonth() === 10;
+  const runCheck = nodeCheck === 'true' || (nodeCheck === 'auto' && november);
+  if (!runCheck) {
+    await summary(`Keepalive only: no Node check (${today.toISOString().slice(0, 10)}, NODE_CHECK=${nodeCheck}; the check runs in November or when forced by hand).`);
+
+    return;
+  }
+  console.log(`Node check: ${nodeCheck === 'true' ? 'forced' : 'November'}. Mode: ${dryRun ? 'dry run (prints the issue, creates nothing)' : 'live'}`);
 
   let current;
   const nvmrcPath = env.NVMRC || '.nvmrc';
