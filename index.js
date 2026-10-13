@@ -2,6 +2,7 @@ const auth = require('./auth/auth');
 const db = require('./db/db');
 const accessControl = require('./accessControl');
 const Configuration = require('./Configuration');
+const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
@@ -30,7 +31,7 @@ const checkAnyoneUser = () => {
     });
 };
 
-const version = () => 'v0.0.1';
+const version = () => `v${packageVersion}`;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
