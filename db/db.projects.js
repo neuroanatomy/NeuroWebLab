@@ -3,6 +3,7 @@
 /* eslint-disable prefer-promise-reject-errors */
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-undef */
+const { escapeRegex } = require('./escapeRegex');
 
 let db;
 let projectsCollection;
@@ -98,14 +99,15 @@ const upsertProject = (project) => new Promise((resolve, reject) => {
 });
 
 /** projects: query all projects
- * @param {object} pagination A pagination object
+ * @param {object} query MongoDB query (default: all projects)
+ * @param {object} options monk find options, e.g. {skip, limit, fields}
  * @returns {array} The projects found
 */
-const queryAllProjects = (pagination) => new Promise((resolve, reject) => {
+const queryAllProjects = (query = {}, options = {}) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(projectsCollection).find(pagination)
+  db.get(projectsCollection).find(query, options)
     .then((projects) => {
       if(projects) {
         resolve(projects);
@@ -151,17 +153,21 @@ const queryUserProjects = (requestedUser) => new Promise((resolve, reject) => {
     .catch(reject);
 });
 
-/** projects: search projects
- * @param {object} query A query object
- * @returns {array} List of projects matching the query
+/** projects: search projects whose shortname contains a text
+ * @param {object} query A query object, {q: text}. The text is matched
+ *   literally (regex characters are escaped).
+ * @returns {array} List of projects matching the query (at most 10)
 */
 const searchProjects = (query) => new Promise((resolve, reject) => {
   if(!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
+  if (!query || typeof query.q !== 'string') {
+    return reject(new Error('searchProjects: q must be a string'));
+  }
   db.get(projectsCollection)
     .find(
-      {'shortname': { '$regex': query.q } },
+      {'shortname': { '$regex': escapeRegex(query.q) } },
       {fields: ['shortname', 'name'], limit: 10 }
     )
     .then(resolve)

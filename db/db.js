@@ -73,6 +73,7 @@ module.exports = {
   findToken: dbToken.findToken,
   addUser: dbUsers.addUser,
   queryUser: dbUsers.queryUser,
+  queryAllUsers: dbUsers.queryAllUsers,
   updateUser: dbUsers.updateUser,
   upsertUser: dbUsers.upsertUser,
   searchUsers: dbUsers.searchUsers,

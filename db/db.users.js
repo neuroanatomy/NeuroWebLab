@@ -1,4 +1,6 @@
 /* eslint-disable prefer-promise-reject-errors */
+const { escapeRegex } = require('./escapeRegex');
+
 let db;
 let usernameField;
 let usersCollection;
@@ -92,14 +94,15 @@ const upsertUser = (user) => new Promise((resolve, reject) => {
 });
 
 /** users: query all users
- * @param {object} pagination Pagination object
+ * @param {object} query MongoDB query (default: all users)
+ * @param {object} options monk find options, e.g. {skip, limit, fields}
  * @returns {array} List of users
 */
-const queryAllUsers = (pagination) => new Promise((resolve, reject) => {
+const queryAllUsers = (query = {}, options = {}) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get('users').find(pagination)
+  db.get(usersCollection).find(query, options)
     .then((users) => {
       if(users) {
         resolve(users);
@@ -110,9 +113,10 @@ const queryAllUsers = (pagination) => new Promise((resolve, reject) => {
     .catch((e) => reject(e));
 });
 
-/** users: search users
- * @param {object} query A query object
- * @returns {array} List of users matching the query
+/** users: search users whose name contains a text
+ * @param {object} query A query object, {q: text}. The text is matched
+ *   literally (regex characters are escaped).
+ * @returns {array} List of users matching the query (at most 10)
 */
 const searchUsers = (query) => new Promise((resolve, reject) => {
   if(!checkHealth()) {
@@ -121,14 +125,17 @@ const searchUsers = (query) => new Promise((resolve, reject) => {
 
   /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
-  // const user = {username: {"$regex": query.q}};
+  if (!query || typeof query.q !== 'string') {
+    return reject(new Error('searchUsers: q must be a string'));
+  }
+
   const user = {};
-  user[usernameField] = {'$regex': query.q};
+  user[usernameField] = {'$regex': escapeRegex(query.q)};
 
   // const fields = ['username', 'name']
   const fields = [usernameField, 'name'];
 
-  db.get('users')
+  db.get(usersCollection)
     .find(user, {fields, limit: 10})
     .then(resolve)
     .catch(reject);

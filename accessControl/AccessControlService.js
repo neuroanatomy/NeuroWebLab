@@ -35,7 +35,7 @@ module.exports = class AccessControlService {
   static canViewFiles = AccessControlService.hasFilesAccess(AccessLevel.VIEW);
   static canEditFiles = AccessControlService.hasFilesAccess(AccessLevel.EDIT);
   static canAddFiles = AccessControlService.hasFilesAccess(AccessLevel.ADD);
-  static canRemoveFiles = AccessControlService.hasAnnotationsAccess(AccessLevel.REMOVE);
+  static canRemoveFiles = AccessControlService.hasFilesAccess(AccessLevel.REMOVE);
 
   /**
    * Retrieve access level for given user or default to the publicly-defined access level

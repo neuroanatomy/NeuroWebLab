@@ -166,6 +166,42 @@ describe('init(): sessions in MongoDB and local login', () => {
     assert.strictEqual(user.avatarURL, 'https://example.org/a.png');
   });
 
+  it('GitHub login: no brainboxURL, and `joined` is kept at the next login', async () => {
+    await client(url).get('/auth/github/callback?code=fake');
+    const first = await nwl.db.nativeMongoDB().collection(usersCollection)
+      .findOne({ [usernameField]: 'ghuser' });
+    assert.notProperty(first, 'brainboxURL');
+    assert.isString(first.joined);
+    await new Promise((r) => { setTimeout(r, 5); });
+    await client(url).get('/auth/github/callback?code=fake');
+    const second = await nwl.db.nativeMongoDB().collection(usersCollection)
+      .findOne({ [usernameField]: 'ghuser' });
+    assert.strictEqual(second.joined, first.joined);
+    const n = await nwl.db.nativeMongoDB().collection(usersCollection)
+      .countDocuments({ [usernameField]: 'ghuser' });
+    assert.strictEqual(n, 1);
+  });
+
+  it('GitHub login: a database error answers 500 without details', async () => {
+    const { queryUser } = nwl.db;
+    nwl.db.queryUser = () => Promise.reject(new Error('secret internal detail'));
+    try {
+      const res = await client(url).get('/auth/github/callback?code=fake');
+      assert.strictEqual(res.status, 500);
+      assert.notInclude(res.text, 'secret internal detail');
+    } finally {
+      nwl.db.queryUser = queryUser;
+    }
+  });
+
+  it('queryAllUsers and searchUsers use the configured users collection', async () => {
+    const all = await nwl.db.queryAllUsers({ [usernameField]: 'ghuser' });
+    assert.lengthOf(all, 1);
+    // searchUsers keeps its fields: <usernameField> and name
+    const found = await nwl.db.searchUsers({ q: 'ghus' });
+    assert.deepEqual(found.map((u) => u[usernameField]), ['ghuser']);
+  });
+
   it('GitHub login without a returnTo goes to /', async () => {
     const callback = await client(url).get('/auth/github/callback?code=fake');
     assert.strictEqual(callback.location, '/');

@@ -11,24 +11,41 @@ let usernameField;
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 
+/**
+ * Successful GitHub login: store or refresh the user's public profile.
+ * `joined` is written only when the user is new (it used to be reset at
+ * every login). No `brainboxURL` any more: it was hardcoded as
+ * '/user/<name>' in every app's users, and no app reads it.
+ * @param {object} req Request, req.user is the GitHub profile
+ * @param {object} res Response
+ * @param {function} next Next middleware (redirects to returnTo)
+ * @returns {void}
+ */
 const upsertUser = (req, res, next) => {
-  // successfully loged in. Check if user is new
-
+  const json = req.user._json || {};
   const user = {
-    // username: req.user.username,
     name: req.user.displayName, // github name (optional)
-    url: req.user._json.blog,
-    brainboxURL: '/user/' + req.user.username,
-    avatarURL: req.user._json.avatar_url,
-    joined: (new Date()).toJSON()
+    url: json.blog,
+    avatarURL: json.avatar_url // eslint-disable-line camelcase
   };
   user[usernameField] = req.user.username;
+  const query = {};
+  query[usernameField] = req.user.username;
 
-  app.db.upsertUser(user)
+  app.db.queryUser(query)
+    .then(
+      () => app.db.updateUser(user),
+      (e) => {
+        if (e && e.message === 'error find one user') {
+          return app.db.addUser({ ...user, joined: (new Date()).toJSON() });
+        }
+        throw e;
+      }
+    )
     .then(() => next())
     .catch((e) => {
-      console.log('db upsert user error', e);
-      res.status(500).send(JSON.stringify(e));
+      console.error('db upsert user error', e && e.message);
+      res.status(500).send('could not save the user');
     });
 };
 

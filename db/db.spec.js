@@ -280,6 +280,80 @@ describe('testing db.js', () => {
     });
   });
 
+  describe('queryAllUsers is exported', () => {
+    it('returns the users, with a query and options', async () => {
+      expect(db.queryAllUsers).to.be.a('function');
+      const all = await db.queryAllUsers();
+      expect(all.map((u) => u.username)).to.include.members([dummyUser.username, dummyUser2.username]);
+      const one = await db.queryAllUsers({ username: dummyUser.username });
+      expect(one).to.have.length(1);
+      const limited = await db.queryAllUsers({}, { limit: 1 });
+      expect(limited).to.have.length(1);
+    });
+  });
+
+  describe('searches match the text literally (escaped regex)', () => {
+    before(async () => {
+      await db.addUser({ username: 'dot.user', name: 'Dot' });
+      await db.addUser({ username: 'dotXuser', name: 'DotX' });
+      await db.addProject({ shortname: 'proj.one', name: 'P1' });
+      await db.addProject({ shortname: 'projXone', name: 'P2' });
+      await db.addProject({ shortname: 'other', name: 'P3' });
+    });
+
+    it('searchUsers: "." is a dot, not any character', async () => {
+      const found = await db.searchUsers({ q: 'dot.' });
+      expect(found.map((u) => u.username)).to.deep.equal(['dot.user']);
+    });
+
+    it('searchUsers: ".*" matches only names containing ".*"', async () => {
+      expect(await db.searchUsers({ q: '.*' })).to.deep.equal([]);
+    });
+
+    it('searchUsers: a catastrophic pattern is just text', async () => {
+      expect(await db.searchUsers({ q: '(a+)+$' })).to.deep.equal([]);
+    });
+
+    it('searchUsers: a plain text still finds by substring', async () => {
+      const found = await db.searchUsers({ q: 'jones' });
+      expect(found.map((u) => u.username).sort()).to.deep.equal(['jessicajones', 'tommyjones']);
+    });
+
+    it('searchUsers: a non-string q is refused', async () => {
+      try {
+        await db.searchUsers({ q: { $ne: null } });
+        expect.fail('should reject');
+      } catch (e) {
+        expect(e.message).to.match(/q must be a string/);
+      }
+    });
+
+    it('searchProjects: "." is a dot', async () => {
+      const found = await db.searchProjects({ q: 'proj.' });
+      expect(found.map((p) => p.shortname)).to.deep.equal(['proj.one']);
+    });
+
+    it('searchProjects: ".*" and "(a+)+$" are just text', async () => {
+      expect(await db.searchProjects({ q: '.*' })).to.deep.equal([]);
+      expect(await db.searchProjects({ q: '(a+)+$' })).to.deep.equal([]);
+    });
+
+    it('searchProjects: a non-string q is refused', async () => {
+      try {
+        await db.searchProjects({ q: ['a'] });
+        expect.fail('should reject');
+      } catch (e) {
+        expect(e.message).to.match(/q must be a string/);
+      }
+    });
+
+    it('queryAllProjects passes its options (skip/limit) to the database', async () => {
+      expect(await db.queryAllProjects({}, { limit: 2 })).to.have.length(2);
+      expect(await db.queryAllProjects({ shortname: 'other' })).to.have.length(1);
+      expect((await db.queryAllProjects()).length).to.be.at.least(3);
+    });
+  });
+
   // describe('testing adding, and querying annotations',()=>{
 
   //     it('should add annotations fine',(done)=>{
