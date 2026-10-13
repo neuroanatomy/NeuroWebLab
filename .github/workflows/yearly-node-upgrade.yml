@@ -1,0 +1,41 @@
+# Yearly reminder to move all NAAT repos (NeuroWebLab, nwl-components, BrainBox,
+# microdraw) and both production servers to the new Node LTS. Runs on 1 November;
+# opens one issue labelled `node-upgrade`, assigned to vars.NODE_UPGRADE_ASSIGNEES.
+# Logic and local testing: .github/scripts/yearly-node-upgrade.mjs.
+name: Yearly Node upgrade
+
+on:
+  schedule:
+    - cron: '0 8 1 11 *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: print the issue instead of creating it'
+        type: boolean
+        default: true
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: yearly-node-upgrade
+  cancel-in-progress: false
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Check Node LTS and open the reminder issue
+        timeout-minutes: 5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Scheduled runs have no inputs: they are never dry runs.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          ASSIGNEES: ${{ vars.NODE_UPGRADE_ASSIGNEES }}
+        run: node .github/scripts/yearly-node-upgrade.mjs
