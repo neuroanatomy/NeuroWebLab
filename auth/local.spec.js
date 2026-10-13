@@ -93,14 +93,6 @@ describe('testing local.js', () => {
   });
 
   it('using correct username and password authenticates correctly', async () => {
-    // /localSignup answers before its insert (fixed in a later patch), so wait for the user
-    for (let i = 0; i < 50; i++) {
-      // eslint-disable-next-line no-await-in-loop
-      if (await db.mongoDB().get(usersCollection)
-        .findOne({ [usernameField]: 'bobjane' })) { break; }
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => { setTimeout(r, 20); });
-    }
     const res = await client(url).post('/localLogin', {
       form: {
         username: 'bobjane',

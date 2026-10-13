@@ -3,6 +3,7 @@
  * The whole of NeuroWebLab's init(), as the apps use it: MongoDB session
  * store (connect-mongo on monk's client), passport, local login, /loggedIn.
  */
+const crypto = require('crypto');
 const { assert } = require('chai');
 const express = require('express');
 const passport = require('passport');
@@ -41,16 +42,6 @@ const annotationsCollection = 'session_spec_annotations';
 describe('init(): sessions in MongoDB and local login', () => {
   let dir, nwl, server, url;
   const savedLocalSignin = process.env.LOCALSIGNIN;
-
-  const waitForUser = async (name) => {
-    for (let i = 0; i < 50; i++) {
-      // eslint-disable-next-line no-await-in-loop
-      if (await nwl.db.mongoDB().get(usersCollection)
-        .findOne({ [usernameField]: name })) { return; }
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => { setTimeout(r, 20); });
-    }
-  };
 
   before(async () => {
     // passport is a singleton: forget the serializers other spec files registered
@@ -107,7 +98,6 @@ describe('init(): sessions in MongoDB and local login', () => {
     const browser = client(url);
     const signup = await browser.post('/localSignup', { json: { username: 'alice', password: 'alicepass1' } });
     assert.strictEqual(signup.status, 200);
-    await waitForUser('alice');
 
     const login = await browser.post('/localLogin', { form: { username: 'alice', password: 'alicepass1' } });
     assert.strictEqual(login.location, '/');
@@ -126,7 +116,6 @@ describe('init(): sessions in MongoDB and local login', () => {
 
   const signUpAndLogIn = async (browser, username, password) => {
     await browser.post('/localSignup', { json: { username, password } });
-    await waitForUser(username);
 
     return browser.post('/localLogin', { form: { username, password } });
   };
@@ -217,6 +206,204 @@ describe('init(): sessions in MongoDB and local login', () => {
     assert.deepEqual(JSON.parse(res.text), { user: { username: 'frank' }, isTokenAuthenticated: true });
     const anonymous = await client(url).get('/api/whoami');
     assert.deepEqual(JSON.parse(anonymous.text), { user: null, isTokenAuthenticated: false });
+  });
+
+  describe('/localSignup (T004 F5)', () => {
+    const signup = (body) => client(url).post('/localSignup', { json: body });
+
+    it('answers 200 only once the user is stored: an immediate login works', async () => {
+      for (let i = 0; i < 10; i++) {
+        const browser = client(url);
+        const username = `immediate${i}`;
+        // eslint-disable-next-line no-await-in-loop
+        assert.strictEqual((await browser.post('/localSignup', { json: { username, password: 'pw' } })).status, 200);
+        // eslint-disable-next-line no-await-in-loop
+        const login = await browser.post('/localLogin', { form: { username, password: 'pw' } });
+        assert.strictEqual(login.location, '/', `login ${i} right after sign-up`);
+      }
+    });
+
+    it('refuses an existing local username (409) and keeps its password', async () => {
+      assert.strictEqual((await signup({ username: 'gina', password: 'first' })).status, 200);
+      const again = await signup({ username: 'gina', password: 'second' });
+      assert.strictEqual(again.status, 409);
+      assert.deepEqual(JSON.parse(again.text), { error: 'username already taken' });
+      const n = await nwl.db.nativeMongoDB().collection(usersCollection)
+        .countDocuments({ [usernameField]: 'gina' });
+      assert.strictEqual(n, 1);
+      assert.strictEqual((await client(url).post('/localLogin', { form: { username: 'gina', password: 'first' } })).location, '/');
+      assert.strictEqual((await client(url).post('/localLogin', { form: { username: 'gina', password: 'second' } })).location, '/html/localsignin.html');
+    });
+
+    it('refuses the name of an existing GitHub user, ignoring case', async () => {
+      await nwl.db.nativeMongoDB().collection(usersCollection)
+        .insertOne({ [usernameField]: 'OctoCat', name: 'The Octocat', avatarURL: 'https://example.org/o.png' });
+      assert.strictEqual((await signup({ username: 'OctoCat', password: 'x' })).status, 409);
+      assert.strictEqual((await signup({ username: 'octocat', password: 'x' })).status, 409);
+      const n = await nwl.db.nativeMongoDB().collection(usersCollection)
+        .countDocuments({ [usernameField]: { $in: ['OctoCat', 'octocat'] } });
+      assert.strictEqual(n, 1);
+    });
+
+    it('refuses "anyone"', async () => {
+      assert.strictEqual((await signup({ username: 'anyone', password: 'x' })).status, 400);
+      assert.strictEqual((await signup({ username: 'Anyone', password: 'x' })).status, 400);
+    });
+
+    it('refuses invalid input with 400', async () => {
+      const bad = [
+        {},
+        { password: 'x' },
+        { username: '', password: 'x' },
+        { username: 'x'.repeat(41), password: 'x' },
+        { username: 'with space', password: 'x' },
+        { username: '-dash', password: 'x' },
+        { username: 'a/b', password: 'x' },
+        { username: { $ne: null }, password: 'x' },
+        { username: ['a'], password: 'x' },
+        { username: 'nopassword' },
+        { username: 'emptypassword', password: '' },
+        { username: 'objpassword', password: { a: 1 } },
+        { username: 'longpassword', password: 'é'.repeat(37) }
+      ];
+      for (const body of bad) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await signup(body);
+        assert.strictEqual(res.status, 400, JSON.stringify(body));
+        assert.isString(JSON.parse(res.text).error);
+      }
+      const n = await nwl.db.nativeMongoDB().collection(usersCollection)
+        .countDocuments({ [usernameField]: { $in: ['nopassword', 'emptypassword', 'objpassword', 'longpassword'] } });
+      assert.strictEqual(n, 0);
+    });
+
+    it('accepts the names the apps use in their tests', async () => {
+      for (const username of ['m5d-auth-user', 'Anonymous', 'a.b_c-d', 'x'.repeat(40), '42']) {
+        // eslint-disable-next-line no-await-in-loop
+        assert.strictEqual((await signup({ username, password: 'baz' })).status, 200, username);
+      }
+    });
+
+    it('answers 500 when the user can\'t be stored', async () => {
+      const { addUser } = nwl.db;
+      nwl.db.addUser = () => Promise.reject(new Error('disk full'));
+      try {
+        const res = await signup({ username: 'unlucky', password: 'x' });
+        assert.strictEqual(res.status, 500);
+        assert.deepEqual(JSON.parse(res.text), { error: 'could not create the user' });
+      } finally {
+        nwl.db.addUser = addUser;
+      }
+    });
+
+    it('stores a bcrypt hash, never the password', async () => {
+      await signup({ username: 'hashed', password: 'plain-secret' });
+      const doc = await nwl.db.nativeMongoDB().collection(usersCollection)
+        .findOne({ [usernameField]: 'hashed' });
+      assert.match(doc.passhash, /^\$2[ab]\$10\$/);
+      assert.notInclude(JSON.stringify(doc), 'plain-secret');
+      assert.strictEqual(doc.strategy, 'local');
+    });
+  });
+
+  describe('local login input', () => {
+    it('an object as username (JSON body) does not log in', async () => {
+      const res = await client(url).post('/localLogin', { json: { username: { $ne: null }, password: 'x' } });
+      assert.strictEqual(res.location, '/html/localsignin.html');
+    });
+
+    it('a GitHub user (no passhash) cannot log in locally, and it is not an error', async () => {
+      const res = await client(url).post('/localLogin', { form: { username: 'OctoCat', password: 'x' } });
+      assert.strictEqual(res.location, '/html/localsignin.html');
+    });
+  });
+
+  describe('what the session keeps of the user (T004 F6)', () => {
+    // the session cookie express-session would set for this session id
+    const signedCookie = (sid) => {
+      const secret = process.env.SESSION_SECRET || 'a mi no me gusta la sémola';
+      const signature = crypto.createHmac('sha256', secret).update(sid)
+        .digest('base64')
+        .replace(/[=]+$/, '');
+
+      return encodeURIComponent(`s:${sid}.${signature}`);
+    };
+
+    const sessionDoc = async (browser) => {
+      const [sid] = decodeURIComponent(browser.cookies['connect.sid']).slice(2)
+        .split('.');
+      const doc = await nwl.db.nativeMongoDB().collection('sessions')
+        .findOne({ _id: sid });
+
+      return JSON.parse(doc.session);
+    };
+
+    it('local login: username, nickname and joined; no passhash', async () => {
+      const browser = client(url);
+      await browser.post('/localSignup', { json: { username: 'helen', password: 'helenpass' } });
+      await browser.post('/localLogin', { form: { username: 'helen', password: 'helenpass' } });
+      const stored = (await sessionDoc(browser)).passport.user;
+      assert.hasAllKeys(stored, ['username', usernameField, 'joined']);
+      assert.strictEqual(stored.username, 'helen');
+      assert.strictEqual(stored[usernameField], 'helen');
+      const me = JSON.parse((await browser.get('/api/whoami')).text).user;
+      assert.deepEqual(me, stored);
+      assert.notProperty(me, 'passhash');
+    });
+
+    it('GitHub login: username, nickname, name, avatarURL, url; no GitHub profile', async () => {
+      const browser = client(url);
+      await browser.get('/auth/github/callback?code=fake');
+      const stored = (await sessionDoc(browser)).passport.user;
+      assert.deepEqual(stored, {
+        username: 'ghuser',
+        [usernameField]: 'ghuser',
+        name: 'GH User',
+        avatarURL: 'https://example.org/a.png',
+        url: 'https://example.org'
+      });
+    });
+
+    it('a session stored by an earlier version (whole document) is read in the new shape', async () => {
+      const sid = 'old-shape-session-' + Date.now();
+      const oldUser = {
+        _id: 'abc',
+        [usernameField]: 'olduser2',
+        username: 'olduser2',
+        strategy: 'local',
+        passhash: '$2b$10$RdFTpI9EN2h9iYx3s32NTeeT5rUhsXi0SrIzT25pqZFYEJKlEPrtW',
+        name: 'Old User',
+        _json: { secret: 'github api answer' },
+        _raw: '{}'
+      };
+      await nwl.db.nativeMongoDB().collection('sessions')
+        .insertOne({
+          _id: sid,
+          expires: new Date(Date.now() + 3600e3),
+          session: JSON.stringify({
+            cookie: { originalMaxAge: null, expires: null, httpOnly: true, path: '/' },
+            passport: { user: oldUser }
+          })
+        });
+      const browser = client(url);
+      browser.cookies['connect.sid'] = signedCookie(sid);
+      const me = JSON.parse((await browser.get('/api/whoami')).text).user;
+      assert.deepEqual(me, { username: 'olduser2', [usernameField]: 'olduser2', name: 'Old User' });
+      assert.deepEqual(JSON.parse((await browser.get('/loggedIn')).text), { loggedIn: true, username: 'olduser2' });
+    });
+
+    it('a stored session user without a username is logged out', async () => {
+      const sid = 'broken-session-' + Date.now();
+      await nwl.db.nativeMongoDB().collection('sessions')
+        .insertOne({
+          _id: sid,
+          expires: new Date(Date.now() + 3600e3),
+          session: JSON.stringify({ cookie: { path: '/' }, passport: { user: { name: 'no username' } } })
+        });
+      const browser = client(url);
+      browser.cookies['connect.sid'] = signedCookie(sid);
+      assert.deepEqual(JSON.parse((await browser.get('/loggedIn')).text), { loggedIn: false });
+    });
   });
 
   it('a new client is not logged in', async () => {

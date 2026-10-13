@@ -6,6 +6,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'a mi no me gusta la sémol
 const github = require('./github');
 const local = require('./local');
 const { getTokenEndPoint } = require('./token');
+const { toSessionUser } = require('./sessionUser');
 
 const ensureAuthenticated = (req, res, next) => {
   if (req.isAuthenticated()) {
@@ -31,12 +32,19 @@ const init = ({ app, db, dirname, usernameField }) => {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // only the username and public fields go into the session (sessionUser.js);
+  // deserializing applies the same reduction to sessions stored before 0.2.0
   passport.serializeUser((user, done) => {
-    done(null, user);
+    const sessionUser = toSessionUser(user, usernameField);
+    if (!sessionUser) {
+      return done(new Error('cannot serialize a user without a username'));
+    }
+    done(null, sessionUser);
   });
 
-  passport.deserializeUser((user, done) => {
-    done(null, user);
+  passport.deserializeUser((stored, done) => {
+    // false: no user (the session is treated as logged out)
+    done(null, toSessionUser(stored, usernameField) || false);
   });
 
   // passport >= 0.6: req.logout is asynchronous and regenerates the
