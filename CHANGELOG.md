@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.3.0 — 2026-10
+
+NeuroWebLab has its own native MongoDB client (coordination ROADMAP Phase 2,
+step b). The driver is `mongodb` ~6.21.0, which supports MongoDB servers
+4.2 to 8.2 (production runs 4.2). mongodb 7 needs a 4.4 server; moving to it
+later should only be a version bump.
+
+### What the apps must do
+
+- **Build `ObjectId`s with NeuroWebLab's driver:**
+  `const { ObjectId } = require('neuroweblab');` (also `app.db.ObjectId`).
+  The driver refuses BSON values made by another bson major
+  (`BSONVersionError`), e.g. an `ObjectId` from an app's own `mongodb` 4.x
+  used in a query on `nativeMongoDB()`.
+- **`nativeMongoDB()` is now a mongodb 6.21 `Db`** (it was monk's 3.7 one).
+  Calls removed from the driver since 3.x fail: `insert` → `insertOne` /
+  `insertMany`, `update` → `updateOne` / `updateMany`, `remove` →
+  `deleteOne` / `deleteMany`, `count` → `countDocuments`, `find(q, {fields})`
+  → `{projection}`; write results have the 4.x+ shape (`insertedId`,
+  `matchedCount`, `modifiedCount`, `deletedCount`, no `ops` / `result`).
+- **`mongoDB()` (monk) is deprecated** and is removed in 1.0.0. It still
+  works unchanged: it now creates a monk instance on the same database on
+  its first call (its own connection pool, monk's 3.7 driver) and warns
+  once (`DeprecationWarning` `NWL_MONK`). An app that never calls it opens
+  no monk connection. Move `db.get(...)` calls to `nativeMongoDB()`.
+- **Tests must close NeuroWebLab's connection with `await app.db.close()`**
+  (new): it closes the native client and the monk instance if one was
+  opened. Closing only the monk instance of `mongoDB()` leaves the native
+  client open, and mocha without `--exit` then never ends.
+
+### Unchanged
+
+- `MONGO_DB` is accepted with or without the `mongodb://` scheme.
+- The helpers (`queryUser`, `queryProject`, `upsertProject`,
+  `findAnnotations`, `updateAnnotations`, `insertAnnotations`, `findToken`,
+  …) keep their names, arguments and results: arrays from finds, the
+  document or `null`/`undefined` (as before) from single finds, the
+  documents from inserts, `{n, nModified, ok}` from updates. As with monk,
+  string `_id`s in queries are cast to `ObjectId`, the `fields` option is
+  read as `projection`, and `updateAnnotations({options: {multi: true}})`
+  updates all matches. One difference: a string `_id` that is not a
+  24-character hex id is left as a string (monk threw).
+- `deleteProject` resolves `{deletedCount, result: {n, ok}}`; the other
+  fields of the 3.7 result (`connection`, …) are gone.
+- Sessions: connect-mongo now uses NeuroWebLab's native client; same
+  `sessions` collection and documents, so existing sessions stay valid.
+- `checkHealth()` now follows the client's state (false while no server is
+  reachable, and after `close()`), instead of staying true once connected.
+
+### Dependencies
+
+- `mongodb` ~6.21.0 (new direct dependency; connect-mongo uses the same
+  copy). monk ^7.3.4 is kept only for `mongoDB()`.
+
 ## 0.2.0 — 2026-10
 
 Security release (coordination tasks T001, T003, T004). Requires Node 26
