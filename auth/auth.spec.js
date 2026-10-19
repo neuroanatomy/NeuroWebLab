@@ -4,7 +4,8 @@ const path = require('path');
 const assert = require('assert');
 const chai = require('chai');
 const express = require('express');
-const monk = require('monk');
+const { MongoClient } = require('mongodb');
+const { toMongoUri } = require('../db/native');
 
 const { expect } = chai;
 
@@ -51,26 +52,24 @@ const auth = require('./auth');
 
 const mongoDbPath = process.env.MONGODB_TEST;
 if (!mongoDbPath) { throw new Error('MONGODB_TEST must be explicitly set to avoid overwriting production'); }
-let db, monkDb;
+let db, mongoClient;
 
 describe('auth.js', () => {
   let dir;
   const savedLocalSignin = process.env.LOCALSIGNIN;
 
-  before((done) => {
-    monkDb = monk(mongoDbPath);
-    monkDb.then(() => {
-      db = {
-        mongoDB () {
-          return monkDb;
-        }
-      };
-      done();
-    });
+  before(async () => {
+    mongoClient = new MongoClient(toMongoUri(mongoDbPath));
+    await mongoClient.connect();
+    db = {
+      mongoClient () {
+        return mongoClient;
+      }
+    };
   });
 
-  after(() => {
-    db.mongoDB().close();
+  after(async () => {
+    await mongoClient.close();
     if (typeof savedLocalSignin === 'undefined') {
       delete process.env.LOCALSIGNIN;
     } else {

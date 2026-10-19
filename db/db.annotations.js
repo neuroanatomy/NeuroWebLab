@@ -1,4 +1,5 @@
 /* eslint-disable max-statements */
+const { find, insert, update } = require('./native');
 
 let db;
 let annotationsCollection;
@@ -22,7 +23,7 @@ const findAnnotations = async (searchQuery, backup) => {
     query = Object.assign({}, searchQuery);
   }
 
-  const annotations = await db.get(annotationsCollection).find(query);
+  const annotations = await find(db.collection(annotationsCollection), query);
 
   if (annotations) {
     return annotations;
@@ -37,12 +38,12 @@ const findAnnotations = async (searchQuery, backup) => {
   * @param {object} options Object with options: {upsert: <boolean>, multi: <boolean>}
   * @returns {Promise} to resolve when saving is complete
   */
-const updateAnnotations = async ({ query, update, options }) => {
+const updateAnnotations = async ({ query, update: updateDoc, options }) => {
   if (!checkHealth()) {
     throw new Error('db connection not healthy');
   }
 
-  const res = await db.get('annotations').update(query, update, options);
+  const res = await update(db.collection('annotations'), query, updateDoc, options);
 
   return res;
 };
@@ -52,7 +53,7 @@ const insertAnnotations = async (arr) => {
     throw new Error('db connection not healthy');
   }
 
-  const res = await db.get('annotations').insert(arr);
+  const res = await insert(db.collection('annotations'), arr);
 
   return res;
 };

@@ -1,5 +1,6 @@
 /* eslint-disable prefer-promise-reject-errors */
 const { escapeRegex } = require('./escapeRegex');
+const { find, findOne, insert, update } = require('./native');
 
 let db;
 let usernameField;
@@ -15,7 +16,7 @@ const addUser = (user) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(usersCollection).insert(user)
+  insert(db.collection(usersCollection), user)
     .then(() => resolve(user))
     .catch((e) => reject(e));
 });
@@ -33,7 +34,7 @@ const updateUser = (user) => new Promise((resolve, reject) => {
 
   delete user._id;
 
-  db.get(usersCollection).update(query, {
+  update(db.collection(usersCollection), query, {
     $set: user
   })
     .then(() => resolve(user))
@@ -49,7 +50,7 @@ const queryUser = (searchQuery) => new Promise((resolve, reject) => {
     return reject(new Error('db connection not healthy'));
   }
 
-  db.get(usersCollection).findOne(searchQuery)
+  findOne(db.collection(usersCollection), searchQuery)
     .then((user) => {
       if(user) {
         resolve(user);
@@ -95,14 +96,14 @@ const upsertUser = (user) => new Promise((resolve, reject) => {
 
 /** users: query all users
  * @param {object} query MongoDB query (default: all users)
- * @param {object} options monk find options, e.g. {skip, limit, fields}
+ * @param {object} options find options, e.g. {skip, limit, projection} (monk's `fields` is accepted)
  * @returns {array} List of users
 */
 const queryAllUsers = (query = {}, options = {}) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(usersCollection).find(query, options)
+  find(db.collection(usersCollection), query, options)
     .then((users) => {
       if(users) {
         resolve(users);
@@ -135,8 +136,7 @@ const searchUsers = (query) => new Promise((resolve, reject) => {
   // const fields = ['username', 'name']
   const fields = [usernameField, 'name'];
 
-  db.get(usersCollection)
-    .find(user, {fields, limit: 10})
+  find(db.collection(usersCollection), user, {fields, limit: 10})
     .then(resolve)
     .catch(reject);
 });

@@ -1,3 +1,5 @@
+const { findOne, insert } = require('./native');
+
 let db;
 
 /** add token
@@ -5,7 +7,7 @@ let db;
  * @returns {void}
 */
 const addToken = (token) => new Promise((resolve, reject) => {
-  db.get('log').insert(token)
+  insert(db.collection('log'), token)
     .then(() => resolve(token))
     .catch((e) => reject(e));
 });
@@ -15,7 +17,7 @@ const addToken = (token) => new Promise((resolve, reject) => {
  * @returns {object} DB entry for that token, with creation and expiry date
 */
 const findToken = (token) => new Promise((resolve, reject) => {
-  db.get('log').findOne({token})
+  findOne(db.collection('log'), {token})
     .then((theToken) => resolve(theToken))
     .catch((e) => reject(e));
 });

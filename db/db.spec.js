@@ -5,7 +5,9 @@ const {expect} = require('chai');
 const mongoDbPath = process.env.MONGODB_TEST;
 if (!mongoDbPath) { throw new Error('MONGODB_TEST must be explicitly set to avoid overwriting production '); }
 
+const mongodb = require('mongodb');
 const db = require('./db');
+const nwl = require('../index');
 
 /** @todo Fix https://github.com/neuroanatomy/NeuroWebLab/issues/1 */
 const usernameField = 'username';
@@ -125,14 +127,17 @@ describe('testing db.js', () => {
       callback: () => console.log('db callback'),
       usernameField,
       usersCollection,
-      projectsCollection
+      projectsCollection,
+      annotationsCollection: 'annotations'
     });
 
-    db.mongoDB()._db.dropDatabase();
+    await db.nativeMongoDB().dropDatabase();
   });
 
-  after(() => db.mongoDB()._db.dropDatabase()
-    .then(() => db.mongoDB().close()));
+  after(async () => {
+    await db.nativeMongoDB().dropDatabase();
+    await db.close();
+  });
 
   it('should show db is in good health', () => {
     expect(db.checkHealth()).to.be.equal(true);
@@ -351,6 +356,81 @@ describe('testing db.js', () => {
       expect(await db.queryAllProjects({}, { limit: 2 })).to.have.length(2);
       expect(await db.queryAllProjects({ shortname: 'other' })).to.have.length(1);
       expect((await db.queryAllProjects()).length).to.be.at.least(3);
+    });
+  });
+
+  describe('helpers on the native driver keep 0.2.0\'s results', () => {
+    it('nativeMongoDB() is a Db of NeuroWebLab\'s mongodb; ObjectId is exported from it', async () => {
+      expect(db.nativeMongoDB()).to.be.instanceOf(mongodb.Db);
+      expect(db.ObjectId).to.equal(mongodb.ObjectId);
+      expect(nwl.ObjectId).to.equal(mongodb.ObjectId);
+      const { insertedId } = await db.nativeMongoDB().collection('objectid_test')
+        .insertOne({ a: 1 });
+      const found = await db.nativeMongoDB().collection('objectid_test')
+        .findOne({ _id: new nwl.ObjectId(insertedId.toHexString()) });
+      expect(found.a).to.equal(1);
+    });
+
+    it('addUser gives the user an _id; a string _id finds it (cast to ObjectId)', async () => {
+      const user = { username: 'castme', name: 'Cast Me' };
+      const added = await db.addUser(user);
+      expect(added).to.equal(user);
+      expect(added._id).to.be.instanceOf(mongodb.ObjectId);
+      const found = await db.queryUser({ _id: String(added._id) });
+      expect(found.username).to.equal('castme');
+      const all = await db.queryAllUsers({ _id: { $in: [String(added._id)] } });
+      expect(all).to.have.length(1);
+    });
+
+    it('find helpers take monk\'s fields option and return arrays', async () => {
+      const users = await db.queryAllUsers({ username: 'castme' }, { fields: ['name', '-_id'] });
+      expect(users).to.deep.equal([{ name: 'Cast Me' }]);
+      const none = await db.queryAllProjects({ shortname: 'nothing-here' });
+      expect(none).to.deep.equal([]);
+      expect(await db.queryUserProjects('nobody')).to.deep.equal([]);
+    });
+
+    it('queryProject resolves undefined when there is no project', async () => {
+      expect(await db.queryProject({ shortname: 'nothing-here' })).to.be.a('undefined');
+    });
+
+    it('project writes: upsert inserts then updates ({n, nModified, ok}); delete gives deletedCount', async () => {
+      const project = { shortname: 'shapes', name: 'Shapes' };
+      expect(await db.upsertProject(project)).to.equal(project);
+      const updated = await db.upsertProject({ shortname: 'shapes', name: 'Shapes 2' });
+      expect(updated).to.deep.equal({ n: 1, nModified: 1, ok: 1 });
+      expect((await db.queryProject({ shortname: 'shapes' })).name).to.equal('Shapes 2');
+      const removed = await db.deleteProject({ shortname: 'shapes' });
+      expect(removed.deletedCount).to.equal(1);
+      expect(await db.queryProject({ shortname: 'shapes' })).to.be.a('undefined');
+    });
+
+    it('annotations: insert returns the documents, update {multi} updates them all', async () => {
+      expect(await db.insertAnnotations([])).to.deep.equal([]);
+      const docs = [
+        { fileID: 'f&slice=1', project: 'p', user: 'u', annotation: { uid: 1 } },
+        { fileID: 'f&slice=1', project: 'p', user: 'u', annotation: { uid: 2 } }
+      ];
+      const inserted = await db.insertAnnotations(docs);
+      expect(inserted).to.equal(docs);
+      expect(inserted.every((d) => d._id instanceof mongodb.ObjectId)).to.equal(true);
+      expect(await db.findAnnotations({ fileID: 'f&slice=1', project: 'p' })).to.have.length(2);
+
+      const res = await db.updateAnnotations({
+        query: { fileID: 'f&slice=1', project: 'p', backup: { $exists: false } },
+        update: { $set: { backup: true } },
+        options: { multi: true }
+      });
+      expect(res).to.deep.equal({ n: 2, nModified: 2, ok: 1 });
+      expect(await db.findAnnotations({ fileID: 'f&slice=1', project: 'p' })).to.deep.equal([]);
+      expect(await db.findAnnotations({ fileID: 'f&slice=1', project: 'p' }, true)).to.have.length(2);
+    });
+
+    it('tokens: addToken returns the token, findToken the document or null', async () => {
+      const token = { token: 'tok-123', username: 'castme', expiryDate: new Date(Date.now() + 3600e3) };
+      expect(await db.addToken(token)).to.equal(token);
+      expect((await db.findToken('tok-123')).username).to.equal('castme');
+      expect(await db.findToken('no-such-token')).to.equal(null);
     });
   });
 

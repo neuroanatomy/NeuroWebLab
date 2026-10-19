@@ -69,6 +69,8 @@ const init = async ({
 };
 
 module.exports = {
+  // ObjectId of NeuroWebLab's driver: ids built with another bson major are refused
+  ObjectId: db.ObjectId,
   authTokenMiddleware,
   init,
   getTokenEndPoint,

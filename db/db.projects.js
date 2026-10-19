@@ -2,10 +2,12 @@
 /* eslint-disable max-statements */
 /* eslint-disable prefer-promise-reject-errors */
 /* eslint-disable no-unused-vars */
-/* eslint-disable no-undef */
 const { escapeRegex } = require('./escapeRegex');
+const { find, findOne, insert, update, remove } = require('./native');
 
 let db;
+let usernameField;
+let usersCollection;
 let projectsCollection;
 let checkHealth;
 
@@ -17,7 +19,7 @@ const addProject = (project) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(projectsCollection).insert(project)
+  insert(db.collection(projectsCollection), project)
     .then(() => resolve(project))
     .catch(reject);
 });
@@ -30,7 +32,7 @@ const deleteProject = (projectQuery) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(projectsCollection).remove(projectQuery)
+  remove(db.collection(projectsCollection), projectQuery)
     .then(resolve)
     .catch(reject);
 });
@@ -44,7 +46,8 @@ const updateProject = (project) => new Promise((resolve, reject) => {
     return reject(new Error('db connection not healthy'));
   }
   delete project._id;
-  db.get(projectsCollection).update(
+  update(
+    db.collection(projectsCollection),
     { shortname: project.shortname },
     { $set: project }
   )
@@ -62,7 +65,7 @@ const queryProject = (searchQuery) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(projectsCollection).findOne(searchQuery)
+  findOne(db.collection(projectsCollection), searchQuery)
     .then((project) => {
       if(project) {
         resolve(project);
@@ -100,14 +103,14 @@ const upsertProject = (project) => new Promise((resolve, reject) => {
 
 /** projects: query all projects
  * @param {object} query MongoDB query (default: all projects)
- * @param {object} options monk find options, e.g. {skip, limit, fields}
+ * @param {object} options find options, e.g. {skip, limit, projection} (monk's `fields` is accepted)
  * @returns {array} The projects found
 */
 const queryAllProjects = (query = {}, options = {}) => new Promise((resolve, reject) => {
   if (!checkHealth()) {
     return reject(new Error('db connection not healthy'));
   }
-  db.get(projectsCollection).find(query, options)
+  find(db.collection(projectsCollection), query, options)
     .then((projects) => {
       if(projects) {
         resolve(projects);
@@ -133,7 +136,7 @@ const queryUserProjects = (requestedUser) => new Promise((resolve, reject) => {
   const user = {};
   user[usernameField] = requestedUser;
 
-  db.get(projectsCollection).find({
+  find(db.collection(projectsCollection), {
     $or: [
       {owner: requestedUser},
       {
@@ -165,11 +168,11 @@ const searchProjects = (query) => new Promise((resolve, reject) => {
   if (!query || typeof query.q !== 'string') {
     return reject(new Error('searchProjects: q must be a string'));
   }
-  db.get(projectsCollection)
-    .find(
-      {'shortname': { '$regex': escapeRegex(query.q) } },
-      {fields: ['shortname', 'name'], limit: 10 }
-    )
+  find(
+    db.collection(projectsCollection),
+    {'shortname': { '$regex': escapeRegex(query.q) } },
+    {fields: ['shortname', 'name'], limit: 10 }
+  )
     .then(resolve)
     .catch(reject);
 });

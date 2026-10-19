@@ -1,7 +1,7 @@
 /* eslint-disable max-statements, max-lines */
 /**
  * The whole of NeuroWebLab's init(), as the apps use it: MongoDB session
- * store (connect-mongo on monk's client), passport, local login, /loggedIn.
+ * store (connect-mongo on NeuroWebLab's native client), passport, local login, /loggedIn.
  */
 const crypto = require('crypto');
 const { assert } = require('chai');
@@ -75,8 +75,8 @@ describe('init(): sessions in MongoDB and local login', () => {
     app.get('/api/whoami', nwlIndex.authTokenMiddleware, (req, res) => {
       res.json({ user: req.user || null, isTokenAuthenticated: Boolean(req.isTokenAuthenticated) });
     });
-    await app.db.mongoDB().get(usersCollection)
-      .remove({ [usernameField]: { $ne: 'anyone' } });
+    await app.db.nativeMongoDB().collection(usersCollection)
+      .deleteMany({ [usernameField]: { $ne: 'anyone' } });
     app.get('/', (req, res) => res.send('home'));
     ({ server, url } = await listen(app));
   });
@@ -85,7 +85,7 @@ describe('init(): sessions in MongoDB and local login', () => {
     await close(server);
     await nwl.db.nativeMongoDB().collection(usersCollection)
       .deleteMany({});
-    await nwl.db.mongoDB().close();
+    await nwl.db.close();
     removeTmpDir(dir);
     if (typeof savedLocalSignin === 'undefined') {
       delete process.env.LOCALSIGNIN;
@@ -112,6 +112,10 @@ describe('init(): sessions in MongoDB and local login', () => {
     const doc = await nwl.db.nativeMongoDB().collection('sessions')
       .findOne({ _id: sid });
     assert.ok(doc, 'session document in the sessions collection');
+    // the documents 0.2.0 wrote (connect-mongo on monk's client): string session, Date expires
+    assert.typeOf(doc.session, 'string');
+    assert.instanceOf(doc.expires, Date);
+    assert.strictEqual(JSON.parse(doc.session).passport.user.username, 'alice');
   });
 
   const signUpAndLogIn = async (browser, username, password) => {

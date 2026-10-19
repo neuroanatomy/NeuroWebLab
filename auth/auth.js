@@ -23,8 +23,9 @@ const init = ({ app, db, dirname, usernameField }) => {
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    // NeuroWebLab's native client; same `sessions` collection and documents as before
     store: MongoStore.create({
-      client: db.mongoDB()._client,
+      client: db.mongoClient(),
       touchAfter: 24 * 3600 // time period in seconds
     })
   }));

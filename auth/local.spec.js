@@ -68,13 +68,13 @@ describe('testing local.js', () => {
       res.send().status(200);
     });
     ({ server: testServer, url } = await listen(app));
-    await db.mongoDB().get(usersCollection)
-      .remove({});
+    await db.nativeMongoDB().collection(usersCollection)
+      .deleteMany({});
   });
 
   after(async () => {
     await close(testServer);
-    await db.mongoDB().close();
+    await db.close();
   });
 
   it('app listening correctly', async () => {
@@ -120,8 +120,8 @@ describe('testing local.js', () => {
     });
 
     it('a user stored with a native $2b$ hash logs in', async () => {
-      await db.mongoDB().get(usersCollection)
-        .insert({ [usernameField]: 'olduser', strategy: 'local', passhash: nativeHash });
+      await db.nativeMongoDB().collection(usersCollection)
+        .insertOne({ [usernameField]: 'olduser', strategy: 'local', passhash: nativeHash });
       const ok = await client(url).post('/localLogin', {
         form: { username: 'olduser', password: 'correct horse battery staple' }
       });
