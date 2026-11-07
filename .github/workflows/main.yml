@@ -15,7 +15,7 @@ jobs:
         run: npm run lint
 
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -24,21 +24,7 @@ jobs:
           node-version-file: .nvmrc
       - uses: supercharge/mongodb-github-action@1.12.1
         with:
-          mongodb-version: "8.0"
-      - name: Diagnose MongoDB (temporary)
-        if: failure()
-        run: |
-          uname -r
-          grep -c -w avx /proc/cpuinfo || true
-          docker inspect mongodb --format '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' || true
-          docker logs mongodb 2>&1 | tail -30 | cut -c1-400 || true
-          docker run -d --name c1 mongo:8.0 --quiet
-          docker run -d --name c2 -e GLIBC_TUNABLES=glibc.pthread.rseq=0 mongo:8.0 --quiet
-          docker run -d --name c3 mongo:8.0.4 --quiet
-          docker run -d --name c4 mongo:8.2 --quiet
-          docker run -d --name c5 mongo:7.0 --quiet
-          sleep 45
-          for c in c1 c2 c3 c4 c5; do echo "$c $(docker inspect $c --format '{{.Config.Image}} {{.State.Status}} exit={{.State.ExitCode}}')"; done
+          mongodb-version: "8.2"
       - run: npm ci
         timeout-minutes: 5
       - name: Run tests
@@ -47,7 +33,7 @@ jobs:
   # Canary: the same tests on the next Node major (NODE-POLICY.md).
   # Non-blocking: a failure here is an early warning, not a release gate.
   test-node-current:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
     steps:
@@ -57,7 +43,7 @@ jobs:
           node-version: current
       - uses: supercharge/mongodb-github-action@1.12.1
         with:
-          mongodb-version: "8.0"
+          mongodb-version: "8.2"
       - run: npm ci
         timeout-minutes: 5
       - name: Run tests
