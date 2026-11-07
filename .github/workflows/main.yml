@@ -25,6 +25,20 @@ jobs:
       - uses: supercharge/mongodb-github-action@1.12.1
         with:
           mongodb-version: "8.0"
+      - name: Diagnose MongoDB (temporary)
+        if: failure()
+        run: |
+          uname -r
+          grep -c -w avx /proc/cpuinfo || true
+          docker inspect mongodb --format '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' || true
+          docker logs mongodb 2>&1 | tail -30 | cut -c1-400 || true
+          docker run -d --name c1 mongo:8.0 --quiet
+          docker run -d --name c2 -e GLIBC_TUNABLES=glibc.pthread.rseq=0 mongo:8.0 --quiet
+          docker run -d --name c3 mongo:8.0.4 --quiet
+          docker run -d --name c4 mongo:8.2 --quiet
+          docker run -d --name c5 mongo:7.0 --quiet
+          sleep 45
+          for c in c1 c2 c3 c4 c5; do echo "$c $(docker inspect $c --format '{{.Config.Image}} {{.State.Status}} exit={{.State.ExitCode}}')"; done
       - run: npm ci
         timeout-minutes: 5
       - name: Run tests
