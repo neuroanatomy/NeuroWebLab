@@ -15,7 +15,7 @@ jobs:
         run: npm run lint
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -33,7 +33,7 @@ jobs:
   # Canary: the same tests on the next Node major (NODE-POLICY.md).
   # Non-blocking: a failure here is an early warning, not a release gate.
   test-node-current:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
     steps:
