@@ -7,10 +7,7 @@ const dbAnnotations = require('./db.annotations.js');
 
 let client = null;
 let nativeDb = null;
-let mongoUri = null;
 let connected = false;
-let monkDb = null;
-let monkWarned = false;
 
 /**
  * Returns the native MongoDB Db (mongodb ~6.21) of NeuroWebLab's client.
@@ -23,32 +20,6 @@ const nativeMongoDB = () => nativeDb;
  * @returns {object} NeuroWebLab's native MongoClient (used by the session store)
  */
 const mongoClient = () => client;
-
-/**
- * Deprecated: a monk instance on the same database, for apps that still call
- * `db.get(...)`. It is created on the first call, with its own connection pool
- * (monk's bundled mongodb 3.7 driver); an app that never calls it opens no monk
- * connection. Removed in 1.0.0: use nativeMongoDB().
- * @returns {object} A monk instance (undefined before init)
- */
-const mongoDB = () => {
-  if (!monkWarned) {
-    monkWarned = true;
-    process.emitWarning(
-      'NeuroWebLab db.mongoDB() (monk) is deprecated and will be removed in 1.0.0; use db.nativeMongoDB()',
-      'DeprecationWarning',
-      'NWL_MONK'
-    );
-  }
-  if (!monkDb && mongoUri) {
-    // required here, so that apps that don't call mongoDB() don't load monk
-    // eslint-disable-next-line global-require
-    const monk = require('monk');
-    monkDb = monk(mongoUri);
-  }
-
-  return monkDb;
-};
 
 const version = () => {
   console.log('db v0.0.1');
@@ -74,19 +45,14 @@ const watchHealth = (newClient) => {
 };
 
 /**
- * Close the native client, and the monk instance of mongoDB() if it was opened.
+ * Close the native client.
  * @returns {Promise<void>} Resolves when closed
  */
 const close = async () => {
   const oldClient = client;
-  const oldMonk = monkDb;
-  monkDb = null;
   client = null;
   nativeDb = null;
   connected = false;
-  if (oldMonk) {
-    await oldMonk.close();
-  }
   if (oldClient) {
     await oldClient.close();
   }
@@ -114,8 +80,7 @@ const init = async ({
   console.log(`connecting to mongodb at: ${overwriteMongoPath || MONGO_DB}`);
 
   try {
-    mongoUri = toMongoUri(overwriteMongoPath || MONGO_DB);
-    client = new MongoClient(mongoUri);
+    client = new MongoClient(toMongoUri(overwriteMongoPath || MONGO_DB));
     watchHealth(client);
     await client.connect();
     nativeDb = client.db();
@@ -139,7 +104,6 @@ module.exports = {
   version,
   init,
   close,
-  mongoDB,
   nativeMongoDB,
   mongoClient,
   checkHealth,

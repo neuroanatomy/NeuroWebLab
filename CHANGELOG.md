@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.0.0 — 2026-11
+
+### Breaking
+
+- **`mongoDB()` (monk) is removed.** Use `nativeMongoDB()`, NeuroWebLab's
+  native mongodb 6.21 `Db` (deprecated since 0.3.0). `db.mongoDB` is now
+  `undefined`: an app that still calls it fails with "db.mongoDB is not a
+  function".
+- **monk is no longer a dependency** (nor its mongodb 3.7 driver and their
+  own dependencies). `close()` closes the native client only.
+
+### What the apps must do
+
+Nothing, if they no longer call `mongoDB()`: check with
+`git grep "mongoDB()"` in the app. Otherwise, move `db.mongoDB().get(...)`
+calls to `nativeMongoDB().collection(...)` (see 0.3.0 for the native
+driver's API) before moving the pin to `#v1.0.0`.
+
+### MongoDB servers
+
+- 2026-11: production runs MongoDB 8.0 since the server move (the 0.3.0
+  note said 4.2); CI runs 8.2 (8.0 does not start on kernels ≥ 6.19).
+- The driver stays `mongodb` ~6.21.0. Moving to mongodb 7 (servers ≥ 4.4)
+  is now possible and is left for a later release.
+
 ## 0.3.0 — 2026-10
 
 NeuroWebLab has its own native MongoDB client (coordination ROADMAP Phase 2,
