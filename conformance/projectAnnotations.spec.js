@@ -13,8 +13,8 @@ const h = harness('conformance_spec4');
 
 /* Each variant: the option of test/conformanceApp.js, and the rules it breaks (the first must fail) */
 const VARIANTS = [
-  // the highest of `anyone` and the own row, as microdraw today
-  ['maxLevel', ['4.2']],
+  // the own row first, else `anyone`, as BrainBox today
+  ['ownRowFirst', ['4.2']],
   // a logged-out visitor writes where `anyone` may edit, as BrainBox today
   ['anonymousWrite', ['4.4']],
   // a refused write answers 403 (401), and stores the value all the same
@@ -22,7 +22,7 @@ const VARIANTS = [
   ['noReadCheck', ['4.1', '4.2']],
   ['viewNeedsEdit', ['4.1', '4.2']],
   ['noWriteCheck', ['4.3', '4.2']],
-  ['editNeedsAdd', ['4.3']],
+  ['editNeedsAdd', ['4.3', '4.2']],
   // a write answers 200, and stores nothing
   ['acceptedNotStored', ['4.3', '4.1', '4.2']]
 ];

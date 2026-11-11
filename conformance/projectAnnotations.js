@@ -51,12 +51,10 @@ const levelOf = (project, key) => {
   if (key === 'owner') {
     return 'remove';
   }
-  // 4.2: the own row if there is one, else `anyone`
-  if (key && project.rows[key]) {
-    return project.rows[key].annotations;
-  }
+  // 4.2: `anyone` is the minimum: the higher of the own row and `anyone`
+  const own = key && project.rows[key] ? project.rows[key].annotations : 'none';
 
-  return project.anyone.annotations;
+  return rank(own) >= rank(project.anyone.annotations) ? own : project.anyone.annotations;
 };
 
 const mayRead = (project, key) => rank(levelOf(project, key)) >= rank('view');

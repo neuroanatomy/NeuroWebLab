@@ -7,8 +7,9 @@
 const { AccessControlService: ACS, AccessLevel, AccessType } = require('../index');
 
 /**
- * Whether a visitor has a level on a project's annotations (4.2: the own row
- * if there is one, else `anyone`; `maxLevel`: the highest, as on the lists)
+ * Whether a visitor has a level on a project's annotations (4.2: `anyone` is
+ * the minimum, the higher of the own row and `anyone`, as on the lists;
+ * `ownRowFirst`: the own row if there is one, else `anyone`)
  * @param {object} project The stored project
  * @param {string} who The visitor or 'anonymous'
  * @param {AccessLevel} level The level needed
@@ -16,7 +17,7 @@ const { AccessControlService: ACS, AccessLevel, AccessType } = require('../index
  * @returns {boolean} Whether the visitor has it
  */
 const mayAnnotate = (project, who, level, broken) => {
-  if (broken.maxLevel) {
+  if (!broken.ownRowFirst) {
     return ACS.hasAccess(AccessType.ANNOTATIONS, level, project, who);
   }
   try {

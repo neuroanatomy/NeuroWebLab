@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.0 — 2026-11
+
+### Changed
+
+- **`conformance` slice 4, row 4.2: `anyone` is the minimum a named
+  collaborator has.** A member's level on a project's annotations is the
+  higher of their own row and `anyone`, as on the lists of slice 1 (decided
+  by the maintainer 2026-11-11). 1.4.0 asserted the own row first, else
+  `anyone`, so a member whose row was below `anyone` lost access that any
+  logged-in user had; on microdraw's production 13 member rows were in that
+  case. The members-below-`anyone` cases are still tagged 4.2.
+- The reference app (`test/conformanceAnnotations.js`) follows the new rule;
+  its broken variant is now `ownRowFirst` (was `maxLevel`).
+
+### What the apps must do
+
+Nothing, until they move the pin to `#v1.5.0`. Then: microdraw no longer
+declares 4.2 (it already takes the higher of the two); BrainBox declares 4.2
+until its annotation checks take the higher of the two.
+
+
 ## 1.4.0 — 2026-11
 
 ### New

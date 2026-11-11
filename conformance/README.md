@@ -155,9 +155,9 @@ rows"):
 
 - 4.1 reading a project's annotations needs `annotations: view`; a refused
   read shows no annotation (the status is the app's);
-- 4.2 the member's own row counts if there is one, else `anyone`: a row
-  lower than `anyone` lowers the member's access (unlike the lists of slice
-  1, where the highest counts);
+- 4.2 `anyone` is the minimum a named collaborator has: the higher of the
+  member's own row and `anyone` counts, as on the lists of slice 1 (decided
+  2026-11-11; it replaced "the own row first" in 1.5.0);
 - 4.3 writing needs `annotations: edit`; a refused write changes nothing
   stored;
 - 4.4 a logged-out visitor never writes, even where `anyone` may edit
