@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.2.0 — 2026-11
+
+### New
+
+- **`conformance`: slice 2, `projectLifecycle(adapter)`: create, save,
+  delete, validation, versions** (39 cases and the final check). The rules
+  are the ones the maintainer approved on 2026-11-11 (coordination
+  `tasks/proposed-shared-pm-tests.md`, "Slice 2: rules for the differing
+  rows"), each case tagged with its row: save logged out 401 (2.1), edit
+  rights on the stored version (2.2), list lengths (2.3) and rows changed in
+  place (2.4), the owner never the client's (2.5), shortname = URL and
+  `[a-zA-Z0-9-]` (2.6), `anyone` row (2.7), exact access values (2.8), users
+  that must exist (2.9), layers (2.10), sanitising per string (2.12), invalid
+  document 400 `{error}` (2.13), stored and blank rows (2.14), client `_id`
+  and `backup` ignored (2.15), a version per save (2.16), stored fields kept
+  (2.17), `modified`/`modifiedBy` (2.18), current reads (2.19), two saves at
+  once (2.20), delete refused (2.22), unknown (2.23), what is left (2.24),
+  a shortname reused (2.25). See `conformance/README.md`.
+- New optional adapter fields, used by slice 2 only: `versions(shortname)`,
+  `annotations.add` / `annotations.readable`, `fileList(project)`. A case
+  that needs a missing one fails naming it (`adapter.versions is needed`).
+  Slice 2 removes a user (2.9): the adapter's `removeUser` must really do it.
+- One adapter serves both slices: `RULES` lists every slice's rules.
+
+### Changed
+
+- **Slice 1's `2.1/status` now asserts 401** (save logged out), the approved
+  rule, instead of BrainBox's 403. An app answering 403 declares
+  `2.1/status`; one answering 401 removes it from its list.
+- The reference app (`test/conformanceApp.js`) keeps versions and follows
+  the approved slice 2 rules (`test/conformanceSave.js`); 23 broken variants
+  show each slice 2 rule can fail.
+
+### What the apps must do
+
+Nothing, until they move the pin to `#v1.2.0`. Then: call
+`projectLifecycle(adapter)` next to `accessMatrix(adapter)`, add `versions`
+and `annotations` to the adapter, and update `expectedDifferences` (the
+adapters in the coordination folder, `tasks/shared-pm-tests-adapters/`).
+
 ## 1.1.1 — 2026-11
 
 ### Fixed

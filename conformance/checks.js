@@ -133,7 +133,8 @@ const listed = (c, found, check) => {
 const save = (c, res, check) => {
   if (!c.who) {
     check('2.1', REFUSED.includes(res.status), `refused expected, got ${res.status}`);
-    check('2.1/status', res.status === 403, `403 expected, got ${res.status}`);
+    // approved 2026-11-11 (slice 2 rules): 401, as 1.5's "who are you?"
+    check('2.1/status', res.status === 401, `401 expected, got ${res.status}`);
 
     return;
   }

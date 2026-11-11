@@ -41,6 +41,15 @@ const { client } = require('./http');
  * @property {function(User, string): Promise<void>} removeProject Remove every version of a project
  * @property {object} [routes] Route templates that differ from BrainBox's; null for a route the app lacks
  * @property {Object<string, string>} [expectedDifferences] Rule id (see README) -> the inventory or ledger row
+ * @property {function(string): Promise<Array<object>>} [versions] Slice 2: every stored document of a shortname, current and backups, oldest first
+ * @property {Annotations} [annotations] Slice 2 (2.24): put an annotation on a file of a project, and tell whether the app still lets it be read
+ * @property {function(object): Array<{source: string, name: string}>} [fileList] Slice 2: the files of a project as the JSON route answers it, as {source, name} (default: strings and objects)
+ */
+
+/**
+ * @typedef {object} Annotations
+ * @property {function(User, string, {source: string, name: string}): Promise<void>} add Store an annotation of the project on the file (directly is fine)
+ * @property {function(User, string, {source: string, name: string}): Promise<boolean>} readable Whether the user can read it over the app's routes
  */
 
 /** BrainBox's routes (the reference). `:p` project, `:u` user, `:n` number of files, `:page` page. */
@@ -108,6 +117,22 @@ const projectDocument = (owner, spec, layer) => {
 };
 
 /**
+ * A file of a project's JSON as {source, name}: BrainBox answers strings, microdraw objects (decision C)
+ * @param {string|object} f A file
+ * @returns {{source: string, name: string}} The file
+ */
+const fileOf = (f) => {
+  if (typeof f === 'string') {
+    return { source: f, name: f.slice(f.lastIndexOf('/') + 1) };
+  }
+
+  return { source: f && f.source, name: f && f.name };
+};
+
+/* An adapter field slice 2 needs and the app did not give */
+const missing = (field, why) => () => Promise.reject(new Error(`adapter.${field} is needed: ${why}`));
+
+/**
  * The adapter with its defaults filled in
  * @param {Adapter} adapter The app's adapter
  * @returns {Adapter} A complete adapter, with `url()`
@@ -125,6 +150,12 @@ const resolveAdapter = (adapter) => {
   const defaults = {
     createUser: (username) => signUp(url(), username),
     removeUser: () => Promise.resolve(),
+    versions: missing('versions', 'every stored document of a shortname, oldest first (slice 2: 2.15, 2.16, 2.20)'),
+    annotations: {
+      add: missing('annotations.add', 'store an annotation of a project on one of its files (slice 2: 2.24)'),
+      readable: missing('annotations.readable', 'whether that annotation can still be read (slice 2: 2.24)')
+    },
+    fileList: (project) => ((project && project.files && Array.isArray(project.files.list)) ? project.files.list : []).map(fileOf),
     anonymousClient: () => client(url()),
     createProject: async (owner, spec) => {
       const doc = projectDocument(owner, spec, layer);
@@ -142,7 +173,10 @@ const resolveAdapter = (adapter) => {
     }
   };
 
-  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer };
+  // slice 2 removes a user to check 2.9: a no-op removeUser would let it pass without checking
+  const removesUsers = typeof adapter.removeUser === 'function';
+
+  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers };
 };
 
 module.exports = { defaultRoutes, projectDocument, resolveAdapter, signUp };
