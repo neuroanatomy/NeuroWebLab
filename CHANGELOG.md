@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.4.0 — 2026-11
+
+### New
+
+- **`conformance`: slice 4, `projectAnnotations(adapter)`: annotations by
+  project** (36 cases and the final check). The rules are the ones the
+  maintainer approved on 2026-11-11 (coordination
+  `tasks/proposed-shared-pm-tests.md`, "Slice 4: rules for the differing
+  rows"), each case tagged with its row: reading needs `annotations: view`
+  (4.1); the member's own row counts if there is one, else `anyone`, so a
+  row lower than `anyone` lowers (4.2); writing needs `annotations: edit`,
+  and a refused write changes nothing stored (4.3); a logged-out visitor
+  never writes, even where `anyone` may edit (4.4). Three projects (`anyone`
+  none, view, edit), each read then written by the owner, members at each
+  level, members below `anyone`, a logged-in non-member and a logged-out
+  visitor. Not in the slice: 4.5, 4.6 (per app); 4.7 is 2.24.
+- New optional adapter fields, used by slice 4 only: `annotations.read(user,
+  shortname, file)` (`{refused: true}` or `{value}`), `annotations.write(user,
+  shortname, file, value)` (true if accepted) and `annotations.file` (the file
+  the projects list). `user` is the logged-out visitor too (`username: null`,
+  a client without a session). The transport is the adapter's: BrainBox's
+  uses its WebSocket.
+
+### Changed
+
+- `annotations.add` and `annotations.readable` (slice 2) and the new
+  `read`/`write` (slice 4) are each optional for the other slice: an adapter
+  with one pair only runs that slice, and the other's missing function is
+  named.
+- The reference app (`test/conformanceApp.js`, `test/conformanceAnnotations.js`)
+  reads and writes annotations by the approved rules; 8 broken variants show
+  each slice 4 rule can fail (the highest level instead of the own row, a
+  logged-out write accepted, a refused write that still stores, …).
+
+### What the apps must do
+
+Nothing, until they move the pin to `#v1.4.0`. Then: call
+`projectAnnotations(adapter)` after the other three, add
+`annotations.read`/`write` (and `file` if the projects must list a file the
+app can open), and declare the rows they still differ on (BrainBox 4.4,
+microdraw 4.2).
+
 ## 1.3.0 — 2026-11
 
 ### New

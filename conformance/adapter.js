@@ -42,7 +42,7 @@ const { client } = require('./http');
  * @property {object} [routes] Route templates that differ from BrainBox's; null for a route the app lacks
  * @property {Object<string, string>} [expectedDifferences] Rule id (see README) -> the inventory or ledger row
  * @property {function(string): Promise<Array<object>>} [versions] Slice 2: every stored document of a shortname, current and backups, oldest first
- * @property {Annotations} [annotations] Slice 2 (2.24): put an annotation on a file of a project, and tell whether the app still lets it be read
+ * @property {Annotations} [annotations] Slice 2 (2.24): put an annotation on a file of a project, and tell whether the app still lets it be read; slice 4: read and write one as a user
  * @property {function(object): Array<{source: string, name: string}>} [fileList] Slice 2: the files of a project as the JSON route answers it, as {source, name} (default: strings and objects)
  * @property {function(string, object): Promise<void>} [setUserFields] Slice 3 (3.7): store fields of a user made by createUser, e.g. {name, email} (directly is fine)
  * @property {Rows} [rows] Slice 3: the rows of a listing or search answer, in the suite's shape (defaults: both apps' shapes)
@@ -58,8 +58,20 @@ const { client } = require('./http');
 
 /**
  * @typedef {object} Annotations
- * @property {function(User, string, {source: string, name: string}): Promise<void>} add Store an annotation of the project on the file (directly is fine)
- * @property {function(User, string, {source: string, name: string}): Promise<boolean>} readable Whether the user can read it over the app's routes
+ * @property {function(User, string, {source: string, name: string}): Promise<void>} [add] Slice 2: store an annotation of the project on the file (directly is fine)
+ * @property {function(User, string, {source: string, name: string}): Promise<boolean>} [readable] Slice 2: whether the user can read it over the app's routes
+ * @property {function(User, string, {source: string, name: string}): Promise<{refused: true}|{value: number|null}>} [read] Slice 4: the value of the user's view of the annotation, over the app's routes or connections; null when none is stored
+ * @property {function(User, string, {source: string, name: string}, number): Promise<boolean>} [write] Slice 4: write the annotation's value (an integer 1-255) as the user; true if the app accepted it
+ * @property {{source: string, name: string}} [file] Slice 4: the file the slice's projects list and annotate (default: projectDocument's first file)
+ */
+
+/**
+ * The logged-out visitor, for slice 4's `annotations.read` and `write`: no
+ * username, no token, a client without a session
+ * @typedef {object} AnonymousUser
+ * @property {null} username Null
+ * @property {object} client A cookie client without a session
+ * @property {null} token Null
  */
 
 /**
@@ -187,7 +199,9 @@ const resolveAdapter = (adapter) => {
     versions: missing('versions', 'every stored document of a shortname, oldest first (slice 2: 2.15, 2.16, 2.20)'),
     annotations: {
       add: missing('annotations.add', 'store an annotation of a project on one of its files (slice 2: 2.24)'),
-      readable: missing('annotations.readable', 'whether that annotation can still be read (slice 2: 2.24)')
+      readable: missing('annotations.readable', 'whether that annotation can still be read (slice 2: 2.24)'),
+      read: missing('annotations.read', 'read the value of an annotation of a project on a file as a user (slice 4)'),
+      write: missing('annotations.write', 'write the value of an annotation of a project on a file as a user (slice 4)')
     },
     setUserFields: missing('setUserFields', 'store a name and an email for a user (slice 3: 3.7)'),
     fileList: (project) => ((project && project.files && Array.isArray(project.files.list)) ? project.files.list : []).map(fileOf),
@@ -213,7 +227,10 @@ const resolveAdapter = (adapter) => {
 
   const rows = { ...defaultRows, ...(adapter.rows || {}) };
 
-  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers, rows };
+  // each slice's annotation functions are optional: the ones the app gives, the others named when missing
+  const annotations = { ...defaults.annotations, ...(adapter.annotations || {}) };
+
+  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers, rows, annotations };
 };
 
 module.exports = { defaultRoutes, projectDocument, resolveAdapter, signUp };

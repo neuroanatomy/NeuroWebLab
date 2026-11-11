@@ -1,15 +1,16 @@
 /**
  * A minimal app for the conformance suite's own test: NeuroWebLab's auth
  * (local sign-in, token) and AccessControlService, with project routes that
- * follow the suite's rules (slice 1: BrainBox's; slices 2 and 3: the approved
+ * follow the suite's rules (slice 1: BrainBox's; slices 2 to 4: the approved
  * ones, test/conformanceSave.js for the save). Projects are kept in memory, as
- * versions.
+ * versions, and so are annotations (a value per file of a project).
  * `broken` options turn single rules off, to show the suite fails then.
  */
 const express = require('express');
 const { AccessControlService: ACS, AccessLevel, AccessType, authTokenMiddleware } = require('../index');
 const { clone, saveHandler } = require('./conformanceSave');
 const { escapeRegex } = require('../db/escapeRegex');
+const { annotationWriteHandler, mayAnnotate } = require('./conformanceAnnotations');
 
 const isAnyone = (c) => c.userID === 'anyone' || c.username === 'anyone';
 const { VIEW } = AccessLevel;
@@ -60,7 +61,7 @@ const makeStore = (broken) => {
     return d;
   };
 
-  return {
+  const store = {
     annotations: [],
     insert,
     current,
@@ -75,8 +76,14 @@ const makeStore = (broken) => {
       }
     },
     markDeleted: (p) => of(p).forEach((v) => { v.backup = true; }),
-    removeAll: (p) => { docs = docs.filter((d) => d.shortname !== p); }
+    // the project's versions and annotations (the nested runs store the same shortnames again)
+    removeAll: (p) => {
+      docs = docs.filter((d) => d.shortname !== p);
+      store.annotations = store.annotations.filter((a) => a.project !== p);
+    }
   };
+
+  return store;
 };
 
 /**
@@ -236,11 +243,12 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
     if (!p && !broken.keepAnnotations) {
       return res.status(404).json({ error: 'no project' });
     }
-    if (p && !ACS.canViewAnnotations(p, who(req))) {
+    if (p && !broken.noReadCheck && !mayAnnotate(p, who(req), broken.viewNeedsEdit ? AccessLevel.EDIT : VIEW, broken)) {
       return res.status(403).json({ error: 'forbidden' });
     }
     res.json(store.annotations.filter((a) => a.project === req.query.project && a.source === req.query.source && !a.backup));
   });
+  app.post('/annotations/json', authTokenMiddleware, annotationWriteHandler(store, broken, who));
   app.get('/project/:p', (req, res) => {
     const p = find(req);
     if (!p) {

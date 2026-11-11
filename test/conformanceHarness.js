@@ -91,6 +91,21 @@ const harness = (name) => {
         const body = res.status === 200 ? JSON.parse(res.text) : [];
 
         return body.length > 0;
+      },
+      // slice 4: the value of the current annotation, over the app's routes
+      read: async (user, project, file) => {
+        const res = await user.client.get(`/annotations/json?project=${encodeURIComponent(project)}&source=${encodeURIComponent(file.source)}`);
+        if (res.status !== 200) {
+          return { refused: true };
+        }
+        const values = JSON.parse(res.text).filter((a) => typeof a.value === 'number');
+
+        return { value: values.length > 0 ? values[values.length - 1].value : null };
+      },
+      write: async (user, project, file, value) => {
+        const res = await user.client.post('/annotations/json', { json: { project, source: file.source, value } });
+
+        return res.status === 200;
       }
     },
     expectedDifferences
@@ -98,7 +113,7 @@ const harness = (name) => {
 
   /**
    * Run a slice in a nested mocha
-   * @param {function} slice accessMatrix, projectLifecycle or projectListings
+   * @param {function} slice accessMatrix, projectLifecycle, projectListings or projectAnnotations
    * @param {object} theAdapter The adapter
    * @param {RegExp} [grep] The tests to run
    * @returns {Promise<object>} The failed tests (title, message, rules) and the pending titles

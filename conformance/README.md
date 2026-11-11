@@ -6,7 +6,8 @@ access matrix: owner, collaborator at each level, `anyone` at each level,
 logged-in non-member, anonymous and token user,
 on the project page, settings, JSON, `/files`, POST, DELETE, the `?page`
 listing and the user's projects. HTTP only (Node's fetch); no browser, no
-WebSocket.
+WebSocket (slice 4 reads and writes annotations through the adapter, which
+may use one).
 
 ## Adopting it
 
@@ -15,7 +16,7 @@ Add a test file that mocha loads **after** the file that starts the app
 server; it never starts one. The app must run with `LOCALSIGNIN=true`.
 
 ```js
-const { accessMatrix, projectLifecycle, projectListings } = require('neuroweblab/conformance');
+const { accessMatrix, projectAnnotations, projectLifecycle, projectListings } = require('neuroweblab/conformance');
 const U = require('./utils');
 
 const adapter = {
@@ -26,7 +27,10 @@ const adapter = {
   removeUser: (username) => U.getNativeDB().collection('user').deleteMany({ nickname: username }),
   routes: { files: null, searchProjects: null }, // only where the app's routes differ
   versions: (shortname) => U.getNativeDB().collection('project').find({ shortname }, { sort: { _id: 1 } }).toArray(),
-  annotations: { add: (owner, shortname, file) => { /* store one */ }, readable: async (user, shortname, file) => true },
+  annotations: {
+    add: (owner, shortname, file) => { /* store one */ }, readable: async (user, shortname, file) => true, // slice 2
+    read: async (user, shortname, file) => ({ value: 1 }), write: async (user, shortname, file, value) => true // slice 4
+  },
   setUserFields: (username, fields) => U.getNativeDB().collection('user').updateOne({ nickname: username }, { $set: fields }),
   expectedDifferences: {
     'route:files': 'ledger "Paged project files route"',
@@ -37,6 +41,7 @@ const adapter = {
 accessMatrix(adapter);
 projectLifecycle(adapter);
 projectListings(adapter);
+projectAnnotations(adapter);
 ```
 
 The adapter (`adapter.js`, JSDoc types): `baseURL`; `createUser(name)` (default:
@@ -45,8 +50,9 @@ The adapter (`adapter.js`, JSDoc types): `baseURL`; `createUser(name)` (default:
 `projectDocument()`, valid in both apps); `insertProject(doc)` (for the project
 without an `anyone` row, which no app saves); `removeProject`, `removeUser`;
 `routes` (BrainBox's by default, `null` = not routed); `expectedDifferences`.
-Slice 2 also uses `versions`, `annotations` and `fileList`, slice 3
-`setUserFields` and `rows` (below).
+Slice 2 also uses `versions`, `annotations.add`/`readable` and `fileList`,
+slice 3 `setUserFields` and `rows`, slice 4 `annotations.read`/`write`/`file`
+(below).
 The two adapters in use are in the coordination folder,
 `tasks/shared-pm-tests-adapters/`.
 
@@ -55,7 +61,7 @@ The two adapters in use are in the coordination folder,
 Each check belongs to a rule, named by its row in the feature map
 (coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `2.1`,
 `2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.25` (slice 2, but 2.11 and
-2.21), `3.1` … `3.8` (slice 3); `<row>/status` is the exact status code where only
+2.21), `3.1` … `3.8` (slice 3), `4.1` … `4.4` (slice 4); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is
 `RULES`. A case whose failing checks are all declared is reported as pending,
 its title ending in `[known difference <rule>: …]`. A case with any other
@@ -140,6 +146,53 @@ What it needs from the app, besides slices 1 and 2's fields:
   `/search/json/projects?q=:q`), `searchUsers` (default BrainBox's
   `/api/userNameQuery?q=:q`), `userProjectsAll`, `userProjectsRange`.
 
+## Slice 4: annotations by project
+
+`projectAnnotations(adapter)`, with the same adapter. The rules are the ones
+the maintainer approved on 2026-11-11 (coordination
+`tasks/proposed-shared-pm-tests.md`, "Slice 4: rules for the differing
+rows"):
+
+- 4.1 reading a project's annotations needs `annotations: view`; a refused
+  read shows no annotation (the status is the app's);
+- 4.2 the member's own row counts if there is one, else `anyone`: a row
+  lower than `anyone` lowers the member's access (unlike the lists of slice
+  1, where the highest counts);
+- 4.3 writing needs `annotations: edit`; a refused write changes nothing
+  stored;
+- 4.4 a logged-out visitor never writes, even where `anyone` may edit
+  (`anyone: edit` means any logged-in user).
+
+The slice signs up 10 users and stores 3 projects directly, with one file
+each: `anyone` none (members at each level), `anyone` view (a member at
+none, one at edit), `anyone` edit (members at none and view). The owner
+writes a value on each first (the setup). Then in each project every visitor
+(the owner, each member, a logged-in non-member, the logged-out visitor)
+reads it, and writes a new value: the owner reads before and after, so an
+accepted write must be stored and a refused one must leave the value as it
+was. 36 cases; members below `anyone` are tagged 4.2, the logged-out write
+where `anyone` may edit 4.4. Not in the slice: 4.5 (annotations outside a
+project, the models differ), 4.6 (tokens, per app); 4.7 is 2.24.
+
+What it needs from the app, besides the other slices' fields:
+
+- `annotations.read(user, shortname, file)`: the user's view of the
+  annotation of the project on the file, over the app's routes or
+  connections: `{refused: true}`, or `{value}` (null when none is stored);
+- `annotations.write(user, shortname, file, value)`: write the value (an
+  integer 1-255) as the user; true if the app accepted it, false if it
+  refused. The app's answer decides it, not a time-out: BrainBox's adapter
+  paints one voxel over the WebSocket and waits for `writeRefused` or the
+  answer to a query sent after the save;
+- `annotations.file` (optional): the file the projects list (BrainBox: the
+  test brain, which its WebSocket can open); default projectDocument's.
+
+`user` is a user of `createUser`, or the logged-out visitor: `{username:
+null, client, token: null}`, `client` from `anonymousClient()`. Slice 2's
+`annotations.add`/`readable` and slice 4's `read`/`write` are each optional
+for the other slice; a missing one fails that slice's setup or cases, naming
+it.
+
 ## NeuroWebLab's own test
 
 `conformance/accessMatrix.spec.js` runs slice 1 on `test/conformanceApp.js`
@@ -154,4 +207,10 @@ slice 3 with 11 variants (page before filtering, a row by `userID` only,
 `start`/`length` required, sliced before filtering, hidden collaborators
 counted, no `modified`, private projects in search, user search by
 username only, an email in user search, regex search text, a non-string
-`q` accepted), a missing route, and a rule two slices check. `test/conformanceHarness.js` starts the app for both.
+`q` accepted), a missing route, and a rule two slices check. `conformance/projectAnnotations.spec.js`
+does it for slice 4 (`test/conformanceAnnotations.js`) with 8 variants (the
+highest level instead of the own row, a logged-out write accepted, a refused
+write that still stores, reads not checked, reads needing edit, writes not
+checked, writes needing add, an accepted write not stored), a declared
+difference, the missing functions, and each slice's annotation functions
+optional for the other. `test/conformanceHarness.js` starts the app for all.
