@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.1.0 — 2026-11
+
+### New
+
+- **`neuroweblab/conformance`: the shared project-management suite, slice 1
+  (access matrix).** `accessMatrix(adapter)` defines mocha tests that an app
+  runs inside its own test command, against the server its setup started,
+  over HTTP: owner, collaborator at each level, `anyone` at each level,
+  non-member, anonymous and token user × project page, settings, JSON,
+  `/files`, POST, DELETE, `?page` listing, user projects, plus unknown
+  projects, the new-project page, `modifiedBy` and unknown tokens (450 tests).
+  The rules are BrainBox's; an app declares where it still differs
+  (`expectedDifferences`), and those cases are reported as pending. See
+  `conformance/README.md`.
+- The cookie client of `test/http.js` moved to `conformance/http.js` (now with
+  `delete`); `test/http.js` re-exports it.
+
+### What the apps must do
+
+Nothing. Adopting the suite is a test-only change (one test file, the adapter).
+
 ## 1.0.0 — 2026-11
 
 ### Breaking
