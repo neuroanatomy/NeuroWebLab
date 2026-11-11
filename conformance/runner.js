@@ -17,8 +17,11 @@ const LIFECYCLE_RULES = [
   '2.13', '2.14', '2.15', '2.16', '2.17', '2.18', '2.19', '2.20', '2.22', '2.23', '2.24', '2.25'
 ];
 
+/** Slice 3's rules (projectListings.js) */
+const LISTING_RULES = ['3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8'];
+
 /** Every rule an adapter may declare (besides `route:<name>`): one adapter serves every slice */
-const RULES = [...new Set([...ACCESS_RULES, ...LIFECYCLE_RULES])];
+const RULES = [...new Set([...ACCESS_RULES, ...LIFECYCLE_RULES, ...LISTING_RULES])];
 
 /**
  * Throw on a declared rule that no slice knows
@@ -33,14 +36,29 @@ const checkDeclared = (diffs) => {
   }
 };
 
+/*
+ * What the slices run with one app adapter share: the tally of every rule,
+ * and which slice judges whether a declared rule still differs. A rule two
+ * slices check (3.1, 3.3: slices 1 and 3) is judged by the last slice
+ * defined, which mocha runs last, on both slices' cases.
+ */
+const shared = new WeakMap();
+
 /**
  * The case runner of a slice
  * @param {object} adapter The resolved adapter (adapter.js)
+ * @param {object} [appAdapter] The app's adapter, the same object for every slice (default: the resolved one)
+ * @param {Array<string>} [sliceRules] The rules of the slice (default: every rule)
  * @returns {object} `runCase(routeName, body)`: a mocha test function; `stillDiffers(it)`: the final check
  */
-const caseRunner = (adapter) => {
+const caseRunner = (adapter, appAdapter = adapter, sliceRules = RULES) => {
   const diffs = adapter.expectedDifferences;
-  const tally = new Map();
+  if (!shared.has(appAdapter)) {
+    shared.set(appAdapter, { tally: new Map(), judge: new Map() });
+  }
+  const { tally, judge } = shared.get(appAdapter);
+  const slice = Symbol('slice');
+  sliceRules.forEach((rule) => judge.set(rule, slice));
 
   /* Run one case: failures of declared rules make it pending ("known difference") */
   const runCase = (routeName, body) => async function () {
@@ -74,11 +92,12 @@ const caseRunner = (adapter) => {
 
   /* The last test of a slice, in a describe of its own: mocha runs a suite's tests before its child suites */
   const stillDiffers = (it) => it('every declared difference still differs', function () {
-    const gone = Object.keys(diffs).filter((rule) => tally.has(rule) && tally.get(rule).failed === 0);
+    const gone = Object.keys(diffs)
+      .filter((rule) => judge.get(rule) === slice && tally.has(rule) && tally.get(rule).failed === 0);
     assert.deepStrictEqual(gone, [], `these declared differences no longer differ, remove them from expectedDifferences: ${gone.join(', ')}`);
   });
 
   return { runCase, stillDiffers };
 };
 
-module.exports = { ACCESS_RULES, LIFECYCLE_RULES, RULES, caseRunner, checkDeclared };
+module.exports = { ACCESS_RULES, LIFECYCLE_RULES, LISTING_RULES, RULES, caseRunner, checkDeclared };

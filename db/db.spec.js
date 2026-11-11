@@ -324,6 +324,13 @@ describe('testing db.js', () => {
       expect(found.map((u) => u.username).sort()).to.deep.equal(['jessicajones', 'tommyjones']);
     });
 
+    it('searchUsers: finds by the name too, and sends the username and name only', async () => {
+      const found = await db.searchUsers({ q: 'DotX' });
+      expect(found.map((u) => u.username)).to.deep.equal(['dotXuser']);
+      expect(Object.keys(found[0]).filter((k) => k !== '_id')
+        .sort()).to.deep.equal(['name', 'username']);
+    });
+
     it('searchUsers: a non-string q is refused', async () => {
       try {
         await db.searchUsers({ q: { $ne: null } });

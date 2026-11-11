@@ -44,6 +44,16 @@ const { client } = require('./http');
  * @property {function(string): Promise<Array<object>>} [versions] Slice 2: every stored document of a shortname, current and backups, oldest first
  * @property {Annotations} [annotations] Slice 2 (2.24): put an annotation on a file of a project, and tell whether the app still lets it be read
  * @property {function(object): Array<{source: string, name: string}>} [fileList] Slice 2: the files of a project as the JSON route answers it, as {source, name} (default: strings and objects)
+ * @property {function(string, object): Promise<void>} [setUserFields] Slice 3 (3.7): store fields of a user made by createUser, e.g. {name, email} (directly is fine)
+ * @property {Rows} [rows] Slice 3: the rows of a listing or search answer, in the suite's shape (defaults: both apps' shapes)
+ */
+
+/**
+ * @typedef {object} Rows Each takes the parsed answer and returns its rows, or null if it is not a list
+ * @property {function(*): Array<{shortname: string}>|null} [list] GET ?page
+ * @property {function(*): Array<{shortname: string, numFiles: number, numCollaborators: number, modified: string}>|null} [userProjects] A user's projects
+ * @property {function(*): Array<{shortname: string, name: string}>|null} [searchProjects] Project search
+ * @property {function(*): Array<{username: string, name: string}>|null} [searchUsers] User search
  */
 
 /**
@@ -52,7 +62,11 @@ const { client } = require('./http');
  * @property {function(User, string, {source: string, name: string}): Promise<boolean>} readable Whether the user can read it over the app's routes
  */
 
-/** BrainBox's routes (the reference). `:p` project, `:u` user, `:n` number of files, `:page` page. */
+/**
+ * BrainBox's routes (the reference). `:p` project, `:u` user, `:n` number of
+ * files, `:page` page, `:start`/`:length` a range, `:q` a search text.
+ * Project search is microdraw's: BrainBox has none (approved 3.6).
+ */
 const defaultRoutes = {
   page: '/project/:p',
   settings: '/project/:p/settings',
@@ -62,7 +76,11 @@ const defaultRoutes = {
   remove: '/project/json/:p',
   list: '/project/json?page=:page',
   userProjects: '/user/json/:u/projects?start=0&length=1000',
-  newProject: '/project/new'
+  newProject: '/project/new',
+  userProjectsAll: '/user/json/:u/projects',
+  userProjectsRange: '/user/json/:u/projects?start=:start&length=:length',
+  searchProjects: '/search/json/projects?q=:q',
+  searchUsers: '/api/userNameQuery?q=:q'
 };
 
 /**
@@ -129,7 +147,23 @@ const fileOf = (f) => {
   return { source: f && f.source, name: f && f.name };
 };
 
-/* An adapter field slice 2 needs and the app did not give */
+const arrayOf = (body, row) => (Array.isArray(body) ? body.map(row) : null);
+const shortnameOf = (r) => (typeof r === 'string' ? r : (r && (r.project || r.shortname)) || '');
+
+/* Slice 3's rows: BrainBox's and microdraw's shapes */
+const defaultRows = {
+  list: (body) => arrayOf(body, (r) => ({ shortname: shortnameOf(r) })),
+  userProjects: (body) => arrayOf(body && body.list, (r) => ({
+    shortname: shortnameOf(r),
+    numFiles: r && r.numFiles,
+    numCollaborators: r && r.numCollaborators,
+    modified: r && r.modified
+  })),
+  searchProjects: (body) => arrayOf(body, (r) => ({ shortname: shortnameOf(r), name: r && (r.name || r.projectName) })),
+  searchUsers: (body) => arrayOf(body, (r) => ({ username: r && (r.username || r.nickname), name: r && r.name }))
+};
+
+/* An adapter field a slice needs and the app did not give */
 const missing = (field, why) => () => Promise.reject(new Error(`adapter.${field} is needed: ${why}`));
 
 /**
@@ -155,6 +189,7 @@ const resolveAdapter = (adapter) => {
       add: missing('annotations.add', 'store an annotation of a project on one of its files (slice 2: 2.24)'),
       readable: missing('annotations.readable', 'whether that annotation can still be read (slice 2: 2.24)')
     },
+    setUserFields: missing('setUserFields', 'store a name and an email for a user (slice 3: 3.7)'),
     fileList: (project) => ((project && project.files && Array.isArray(project.files.list)) ? project.files.list : []).map(fileOf),
     anonymousClient: () => client(url()),
     createProject: async (owner, spec) => {
@@ -176,7 +211,9 @@ const resolveAdapter = (adapter) => {
   // slice 2 removes a user to check 2.9: a no-op removeUser would let it pass without checking
   const removesUsers = typeof adapter.removeUser === 'function';
 
-  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers };
+  const rows = { ...defaultRows, ...(adapter.rows || {}) };
+
+  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers, rows };
 };
 
 module.exports = { defaultRoutes, projectDocument, resolveAdapter, signUp };

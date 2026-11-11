@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const { parse, rowName, shortnameOf } = require('./checks');
 const { access, uniform } = require('./matrix');
 const { defaultRoutes, projectDocument, resolveAdapter } = require('./adapter');
-const { caseRunner, checkDeclared } = require('./runner');
+const { LIFECYCLE_RULES, caseRunner, checkDeclared } = require('./runner');
 const saveCases = require('./lifecycleSave');
 const validationCases = require('./lifecycleValidation');
 const versionCases = require('./lifecycleVersions');
@@ -124,7 +124,7 @@ const helpers = (adapter, users, prefix) => {
 const projectLifecycle = (appAdapter, { mocha = global, prefix = `cs${crypto.randomBytes(3).toString('hex')}` } = {}) => {
   const adapter = resolveAdapter(appAdapter);
   checkDeclared(adapter.expectedDifferences);
-  const { runCase, stillDiffers } = caseRunner(adapter);
+  const { runCase, stillDiffers } = caseRunner(adapter, appAdapter, LIFECYCLE_RULES);
   const { describe, it, before, after } = mocha;
   const users = {};
   const t = { ...helpers(adapter, users, prefix), describe, it, runCase, R: defaultRoutes, ROWS };

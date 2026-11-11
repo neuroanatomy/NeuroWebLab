@@ -1,16 +1,20 @@
 /**
  * A minimal app for the conformance suite's own test: NeuroWebLab's auth
  * (local sign-in, token) and AccessControlService, with project routes that
- * follow the suite's rules (slice 1: BrainBox's; slice 2: the approved ones,
- * test/conformanceSave.js). Projects are kept in memory, as versions.
+ * follow the suite's rules (slice 1: BrainBox's; slices 2 and 3: the approved
+ * ones, test/conformanceSave.js for the save). Projects are kept in memory, as
+ * versions.
  * `broken` options turn single rules off, to show the suite fails then.
  */
 const express = require('express');
 const { AccessControlService: ACS, AccessLevel, AccessType, authTokenMiddleware } = require('../index');
 const { clone, saveHandler } = require('./conformanceSave');
+const { escapeRegex } = require('../db/escapeRegex');
 
 const isAnyone = (c) => c.userID === 'anyone' || c.username === 'anyone';
 const { VIEW } = AccessLevel;
+const PER_PAGE = 20;
+const MAX_FOUND = 10;
 
 /**
  * The project as the visitor may see it, decided on the stored project (1.10)
@@ -76,23 +80,117 @@ const makeStore = (broken) => {
 };
 
 /**
+ * A user's projects (3.3-3.5): owned or a row by `userID` or `username`, then
+ * `files: view`; `start`/`length` optional, sliced after filtering; counts of
+ * what the visitor may see
+ * @param {object} store The store
+ * @param {object} broken The rules turned off
+ * @param {function(object): string} who The visitor of a request
+ * @returns {function} The handler
+ */
+const userProjectsHandler = (store, broken, who) => (req, res) => {
+  const { u } = req.params;
+  const { start, length } = req.query;
+  if (broken.rangeRequired && (typeof start === 'undefined' || typeof length === 'undefined')) {
+    return res.status(403).json({ error: 'Provide start and length' });
+  }
+  const from = typeof start === 'undefined' ? 0 : Number(start);
+  const to = typeof length === 'undefined' ? Infinity : from + Number(length);
+  const isMember = (c) => c.userID === u || (!broken.userIDOnly && c.username === u);
+  let list = store.listed().filter((p) => p.owner === u || p.collaborators.list.some(isMember));
+  const visible = (projects) => projects.filter((p) => ACS.canViewFiles(p, who(req)));
+  list = broken.sliceBeforeFilter ? visible(list.slice(from, to)) : visible(list).slice(from, to);
+  res.json({
+    success: list.length > 0,
+    list: list.map((p) => ({
+      project: p.shortname,
+      projectName: p.name,
+      owner: p.owner,
+      numFiles: p.files.list.length,
+      numCollaborators: (broken.hiddenCollaboratorsCounted ? p : projectForUser(p, who(req), broken)).collaborators.list.length,
+      ...(broken.noModified ? {} : { modified: p.modified })
+    }))
+  });
+};
+
+/* The search text, or a 400 answer (3.8); `regexSearch`: not escaped */
+const searchText = (req, res, broken) => {
+  const { q } = req.query;
+  if (typeof q !== 'string' && !broken.nonStringAccepted) {
+    res.status(400).json({ error: 'Provide the text to search for in q' });
+
+    return null;
+  }
+
+  return broken.regexSearch ? q : escapeRegex(String(q));
+};
+
+/**
+ * Project search (3.6): projects the visitor may view, the first 10, {shortname, name}
+ * @param {object} store The store
+ * @param {object} broken The rules turned off
+ * @param {function(object): string} who The visitor of a request
+ * @returns {function} The handler
+ */
+const projectSearchHandler = (store, broken, who) => (req, res) => {
+  const text = searchText(req, res, broken);
+  if (text === null) {
+    return;
+  }
+  try {
+    const re = new RegExp(text);
+    const found = store.listed().filter((p) => re.test(p.shortname))
+      .filter((p) => broken.privateInSearch || ACS.canViewFiles(p, who(req)));
+    res.json(found.slice(0, MAX_FOUND).map((p) => ({ shortname: p.shortname, name: p.name })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+/**
+ * User search (3.7): the username or the name, at most 10, {username, name}
+ * @param {object} broken The rules turned off
+ * @param {function(object, number): Promise<Array<object>>} findUsers Users matching a filter
+ * @returns {function} The handler
+ */
+const userSearchHandler = (broken, findUsers) => async (req, res) => {
+  const text = searchText(req, res, broken);
+  if (text === null) {
+    return;
+  }
+  const filter = broken.usernameOnly
+    ? { username: { $regex: text } }
+    : { $or: [{ username: { $regex: text } }, { name: { $regex: text } }] };
+  try {
+    const users = await findUsers(filter, MAX_FOUND);
+    res.json(users.map((x) => (broken.emailInUserSearch ? { username: x.username, name: x.name, email: x.email } : { username: x.username, name: x.name })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+/**
  * Add the project routes to an app on which NeuroWebLab's init() ran
  * @param {object} app The express app
  * @param {object} broken Rules to turn off, e.g. {collaborators: true}
  * @param {function(string): Promise<boolean>} userExists Whether a user exists
+ * @param {function(object, number): Promise<Array<object>>} findUsers Users matching a MongoDB filter, at most n (3.7)
  * @returns {object} The store (makeStore)
  */
 // eslint-disable-next-line max-statements, max-lines-per-function
-const addProjectRoutes = (app, broken, userExists) => {
+const addProjectRoutes = (app, broken, userExists, findUsers) => {
   const store = makeStore(broken);
   const who = (req) => (req.user ? req.user.username : 'anonymous');
   const find = (req) => store.current(req.params.p);
 
   app.get('/project/new', (req, res) => res.send(req.user ? 'new project' : 'Logging in is required to create a new project.'));
+  // filtered, then paged (3.2); `pageBeforeFilter`: paged, then filtered
   app.get('/project/json', authTokenMiddleware, (req, res) => {
-    const visible = store.listed().filter((p) => ACS.canViewFiles(p, who(req)));
     const n = Number(req.query.page);
-    res.json(visible.slice(n * 20, (n + 1) * 20).map((p) => ({ project: p.shortname, projectName: p.name, owner: p.owner })));
+    const onPage = (list) => list.slice(n * PER_PAGE, (n + 1) * PER_PAGE);
+    const visible = (list) => list.filter((p) => ACS.canViewFiles(p, who(req)));
+    const listed = broken.pageBeforeFilter ? visible(onPage(store.listed())) : onPage(visible(store.listed()));
+    res.json(listed.map((p) => ({ project: p.shortname, projectName: p.name, owner: p.owner })));
   });
   app.get('/project/json/:p', authTokenMiddleware, (req, res) => {
     const p = find(req);
@@ -166,13 +264,9 @@ const addProjectRoutes = (app, broken, userExists) => {
     }
     res.send(page('project', { ...projectForUser(p, who(req), broken), files: { list: [] } }));
   });
-  app.get('/user/json/:u/projects', (req, res) => {
-    const list = store.listed()
-      .filter((p) => p.owner === req.params.u || p.collaborators.list.some((c) => c.userID === req.params.u))
-      .filter((p) => ACS.canViewFiles(p, who(req)))
-      .map((p) => ({ project: p.shortname, projectName: p.name, owner: p.owner }));
-    res.json({ success: list.length > 0, list });
-  });
+  app.get('/user/json/:u/projects', userProjectsHandler(store, broken, who));
+  app.get('/search/json/projects', projectSearchHandler(store, broken, who));
+  app.get('/api/userNameQuery', userSearchHandler(broken, findUsers));
 
   return store;
 };

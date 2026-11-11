@@ -6,7 +6,7 @@
 const crypto = require('crypto');
 const assert = require('assert');
 const C = require('./checks');
-const { RULES, caseRunner, checkDeclared } = require('./runner');
+const { ACCESS_RULES, RULES, caseRunner, checkDeclared } = require('./runner');
 const M = require('./matrix');
 const { defaultRoutes, resolveAdapter } = require('./adapter');
 const specialCases = require('./specialCases');
@@ -36,7 +36,7 @@ const visitorsFor = (projectKey) => M.visitorsOf(projectKey)
 const accessMatrix = (appAdapter, { mocha = global, prefix = `cf${crypto.randomBytes(3).toString('hex')}` } = {}) => {
   const adapter = resolveAdapter(appAdapter);
   checkDeclared(adapter.expectedDifferences);
-  const { runCase, stillDiffers } = caseRunner(adapter);
+  const { runCase, stillDiffers } = caseRunner(adapter, appAdapter, ACCESS_RULES);
   const { describe, it, before, after } = mocha;
   const names = {
     user: (key) => `${prefix}${key}`,

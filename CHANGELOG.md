@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.3.0 — 2026-11
+
+### New
+
+- **`conformance`: slice 3, `projectListings(adapter)`: listings and search**
+  (30 cases and the final check). The rules are the ones the maintainer
+  approved on 2026-11-11 (coordination `tasks/proposed-shared-pm-tests.md`,
+  "Slice 3: rules for the differing rows"), each case tagged with its row:
+  `?page` lists only what the visitor may view (3.1), filtered then paged,
+  20 per page, no project twice (3.2, over 41 projects, the hidden ones mixed
+  in); a user's projects: owned or a row by `userID` or `username`, then
+  `files: view` (3.3), `start`/`length` optional, filtered then sliced (3.4),
+  rows with `numFiles`, `numCollaborators` of the visible rows, `modified`,
+  an empty list (3.5); project search: only viewable projects, the first 10,
+  `{shortname, name}` (3.6); user search: username or name, at most 10, no
+  email or other private field (3.7); search text literal, a non-string
+  `q` refused 400 (3.8). Not in the slice: 3.9, 3.10 (app-specific).
+- New default routes: `userProjectsAll`, `userProjectsRange`,
+  `searchProjects` (`/search/json/projects?q=:q`; BrainBox has no project
+  search: its adapter sets it to `null`, and the 3.6 cases are skipped),
+  `searchUsers` (`/api/userNameQuery?q=:q`).
+- New optional adapter fields, used by slice 3 only: `setUserFields(username,
+  fields)` (a name and an email, 3.7) and `rows` (`list`, `userProjects`,
+  `searchProjects`, `searchUsers`: the answer's rows in the suite's shape;
+  the defaults read both apps' shapes).
+
+### Changed
+
+- `db.searchUsers` matches the name too, not only the username (as
+  BrainBox's user search; shared suite row 3.7). It still sends the
+  username and name only, at most 10.
+- The reference app (`test/conformanceApp.js`) gains the listing and search
+  routes of the approved rules; 11 broken variants show each slice 3 rule
+  can fail (page before filtering, private projects in search, hidden
+  collaborators counted, an email in user search, …).
+
+### What the apps must do
+
+Nothing, until they move the pin to `#v1.3.0`. Then: call
+`projectListings(adapter)` after the other two, add `setUserFields`, set
+`routes` where they differ (BrainBox: `searchProjects: null`; microdraw:
+`searchUsers`), and declare the rows they still differ on.
+
 ## 1.2.0 — 2026-11
 
 ### New

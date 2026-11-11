@@ -130,8 +130,9 @@ const searchUsers = (query) => new Promise((resolve, reject) => {
     return reject(new Error('searchUsers: q must be a string'));
   }
 
-  const user = {};
-  user[usernameField] = {'$regex': escapeRegex(query.q)};
+  // the username or the name, as BrainBox's user search (shared suite row 3.7)
+  const text = {'$regex': escapeRegex(query.q)};
+  const user = { '$or': [{ [usernameField]: text }, { name: text }] };
 
   // const fields = ['username', 'name']
   const fields = [usernameField, 'name'];

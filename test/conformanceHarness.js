@@ -42,7 +42,10 @@ const harness = (name) => {
     h.dir = makeTmpDirWithFile('github-keys.json', JSON.stringify({ clientID: 'id', clientSecret: 'secret', callbackURL: 'http://127.0.0.1/cb' }));
     await nwlIndex.init({ app, MONGO_DB: mongoDbPath, dirname: h.dir, usernameField: 'username', usersCollection, projectsCollection: `${name}_projects`, annotationsCollection: `${name}_annotations` });
     h.db = app.db;
-    h.store = addProjectRoutes(app, broken, async (username) => Boolean(await users().findOne({ username })));
+    const userExists = async (username) => Boolean(await users().findOne({ username }));
+    const findUsers = (filter, limit) => users().find(filter, { limit })
+      .toArray();
+    h.store = addProjectRoutes(app, broken, userExists, findUsers);
     ({ server: h.server, url: h.url } = await listen(app));
   };
 
@@ -78,6 +81,9 @@ const harness = (name) => {
     insertProject: (doc) => { h.store.insert(doc); },
     removeProject: (owner, shortname) => { h.store.removeAll(shortname); },
     versions: (shortname) => h.store.versions(shortname),
+    setUserFields: async (username, fields) => {
+      await users().updateOne({ username }, { $set: fields });
+    },
     annotations: {
       add: (owner, project, file) => { h.store.annotations.push({ project, source: file.source }); },
       readable: async (user, project, file) => {
@@ -92,7 +98,7 @@ const harness = (name) => {
 
   /**
    * Run a slice in a nested mocha
-   * @param {function} slice accessMatrix or projectLifecycle
+   * @param {function} slice accessMatrix, projectLifecycle or projectListings
    * @param {object} theAdapter The adapter
    * @param {RegExp} [grep] The tests to run
    * @returns {Promise<object>} The failed tests (title, message, rules) and the pending titles
