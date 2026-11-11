@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.6.0 — 2026-11
+
+### New
+
+- **`conformance`: slice 5, `projectAdmin(adapter)`: admin** (5 cases per
+  admin GET route and 3 per other route, 3 for the page, 1 for the version
+  rule, and the final check). The rules are the ones the maintainer approved
+  on 2026-11-11 (coordination `tasks/proposed-shared-pm-tests.md`, "Slice 5:
+  rules"), each case tagged with its row: every admin JSON route the adapter
+  lists answers 401 logged out and 403 to a logged-in non-admin, by session
+  and by token, and an admin's GETs answer 200 by session and by token; POSTs
+  are only checked for refusals, the suite never runs an admin action
+  through them (5.1); the admin page answers 401 logged out with the login
+  prompt, 403 to a non-admin, 200 to an admin (5.2); an admin change to a
+  project stores a new current version and keeps every earlier one,
+  unchanged, as a backup (5.4). Not in the slice: 5.3 and 5.5 (the tools
+  differ by data model), and the log and the lock of 5.4 (per app).
+- New optional adapter field, used by slice 5 only: `admin`, with
+  `routes` (`[{method, path}]`, GET, POST or DELETE, a path may carry a
+  query), `page` (default `/admin`), `user()` (an admin, a `User` as
+  `createUser`'s; removed by `removeUser`) and `changeProject(admin,
+  shortname)` (one of the app's admin actions on a project the slice stored;
+  it may store versions of its own first). A missing one fails with a
+  message naming it.
+- `ADMIN_RULES` (`5.1`, `5.2`, `5.4`) in `RULES`.
+
+### Changed
+
+- The reference app gains admin routes (`test/conformanceAdmin.js`); 7 broken
+  variants show each slice 5 rule can fail (a non-admin let through, a token
+  not counted as a login, the page open logged out, the page without the
+  login prompt, an admin change that overwrites the current version without
+  a backup, one that leaves the previous version current, one that changes
+  the previous version).
+
+### What the apps must do
+
+Nothing, until they move the pin to `#v1.6.0`. Then: call
+`projectAdmin(adapter)` after the other four, add `admin` (its routes, an
+admin user, an admin change), and declare the rows they still differ on
+(BrainBox 5.2: its admin page answers 200 logged out).
+
 ## 1.5.0 — 2026-11
 
 ### Changed

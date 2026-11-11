@@ -2,7 +2,8 @@
  * A minimal app for the conformance suite's own test: NeuroWebLab's auth
  * (local sign-in, token) and AccessControlService, with project routes that
  * follow the suite's rules (slice 1: BrainBox's; slices 2 to 4: the approved
- * ones, test/conformanceSave.js for the save). Projects are kept in memory, as
+ * ones, test/conformanceSave.js for the save; slice 5's admin routes,
+ * test/conformanceAdmin.js). Projects are kept in memory, as
  * versions, and so are annotations (a value per file of a project).
  * `broken` options turn single rules off, to show the suite fails then.
  */
@@ -67,6 +68,8 @@ const makeStore = (broken) => {
     current,
     versions: (p) => clone(of(p)),
     last: (p) => of(p).pop(),
+    lastBackup: (p) => of(p).filter((d) => d.backup)
+      .pop(),
     // the current versions; `listBackups`: every version
     listed: () => docs.filter((d) => broken.listBackups || current(d.shortname) === d),
     saveVersion: (version) => {

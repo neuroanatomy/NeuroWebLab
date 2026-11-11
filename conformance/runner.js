@@ -23,8 +23,11 @@ const LISTING_RULES = ['3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8'];
 /** Slice 4's rules (projectAnnotations.js) */
 const ANNOTATION_RULES = ['4.1', '4.2', '4.3', '4.4'];
 
+/** Slice 5's rules (projectAdmin.js) */
+const ADMIN_RULES = ['5.1', '5.2', '5.4'];
+
 /** Every rule an adapter may declare (besides `route:<name>`): one adapter serves every slice */
-const RULES = [...new Set([...ACCESS_RULES, ...LIFECYCLE_RULES, ...LISTING_RULES, ...ANNOTATION_RULES])];
+const RULES = [...new Set([...ACCESS_RULES, ...LIFECYCLE_RULES, ...LISTING_RULES, ...ANNOTATION_RULES, ...ADMIN_RULES])];
 
 /**
  * Throw on a declared rule that no slice knows
@@ -103,4 +106,4 @@ const caseRunner = (adapter, appAdapter = adapter, sliceRules = RULES) => {
   return { runCase, stillDiffers };
 };
 
-module.exports = { ACCESS_RULES, ANNOTATION_RULES, LIFECYCLE_RULES, LISTING_RULES, RULES, caseRunner, checkDeclared };
+module.exports = { ACCESS_RULES, ADMIN_RULES, ANNOTATION_RULES, LIFECYCLE_RULES, LISTING_RULES, RULES, caseRunner, checkDeclared };

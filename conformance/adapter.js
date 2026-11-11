@@ -46,6 +46,15 @@ const { client } = require('./http');
  * @property {function(object): Array<{source: string, name: string}>} [fileList] Slice 2: the files of a project as the JSON route answers it, as {source, name} (default: strings and objects)
  * @property {function(string, object): Promise<void>} [setUserFields] Slice 3 (3.7): store fields of a user made by createUser, e.g. {name, email} (directly is fine)
  * @property {Rows} [rows] Slice 3: the rows of a listing or search answer, in the suite's shape (defaults: both apps' shapes)
+ * @property {Admin} [admin] Slice 5: the app's admin routes, page and user, and an admin change
+ */
+
+/**
+ * @typedef {object} Admin
+ * @property {Array<{method: string, path: string}>} [routes] 5.1: every admin JSON route (GET, POST or DELETE; the path may carry a query, e.g. `?url=...`); the suite runs no admin POST
+ * @property {string} [page] 5.2: the admin page (default `/admin`)
+ * @property {function(): Promise<User>} [user] An admin, a User as createUser's (removed by removeUser)
+ * @property {function(User, string): Promise<void>} [changeProject] 5.4: as the admin, run one of the app's admin actions on a project the slice stored; it may store versions of its own first
  */
 
 /**
@@ -204,6 +213,12 @@ const resolveAdapter = (adapter) => {
       write: missing('annotations.write', 'write the value of an annotation of a project on a file as a user (slice 4)')
     },
     setUserFields: missing('setUserFields', 'store a name and an email for a user (slice 3: 3.7)'),
+    admin: {
+      routes: null,
+      page: '/admin',
+      user: missing('admin.user', 'an admin, a User as createUser\'s (slice 5)'),
+      changeProject: missing('admin.changeProject', 'run an admin action on a project as the admin (slice 5: 5.4)')
+    },
     fileList: (project) => ((project && project.files && Array.isArray(project.files.list)) ? project.files.list : []).map(fileOf),
     anonymousClient: () => client(url()),
     createProject: async (owner, spec) => {
@@ -229,8 +244,9 @@ const resolveAdapter = (adapter) => {
 
   // each slice's annotation functions are optional: the ones the app gives, the others named when missing
   const annotations = { ...defaults.annotations, ...(adapter.annotations || {}) };
+  const admin = { ...defaults.admin, ...(adapter.admin || {}) };
 
-  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers, rows, annotations };
+  return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers, rows, annotations, admin };
 };
 
 module.exports = { defaultRoutes, projectDocument, resolveAdapter, signUp };

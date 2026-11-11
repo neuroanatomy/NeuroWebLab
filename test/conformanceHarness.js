@@ -9,6 +9,7 @@ const passport = require('passport');
 const nwlIndex = require('../index');
 const { signUp } = require('../conformance/adapter');
 const { addProjectRoutes, makeApp } = require('./conformanceApp');
+const { addAdminRoutes } = require('./conformanceAdmin');
 const { listen, close } = require('./http');
 const { makeTmpDirWithFile, removeTmpDir } = require('./mocha.test.util');
 
@@ -26,6 +27,7 @@ const harness = (name) => {
   const broken = {};
   const signedUp = new Map();
   const savedLocalSignin = process.env.LOCALSIGNIN;
+  const admins = new Set();
   const h = { broken, prefix: `cfself${crypto.randomBytes(2).toString('hex')}` };
   const users = () => h.db.nativeMongoDB().collection(usersCollection);
 
@@ -46,6 +48,7 @@ const harness = (name) => {
     const findUsers = (filter, limit) => users().find(filter, { limit })
       .toArray();
     h.store = addProjectRoutes(app, broken, userExists, findUsers);
+    addAdminRoutes(app, h.store, broken, admins);
     ({ server: h.server, url: h.url } = await listen(app));
   };
 
@@ -59,6 +62,14 @@ const harness = (name) => {
     } else {
       process.env.LOCALSIGNIN = savedLocalSignin;
     }
+  };
+
+  // slice 5: the admin is signed up once, as the other users
+  const adminUser = async () => {
+    const user = await h.adapter({}).createUser(`${h.prefix}admin`);
+    admins.add(user.username);
+
+    return user;
   };
 
   h.adapter = (expectedDifferences) => ({
@@ -106,6 +117,16 @@ const harness = (name) => {
         const res = await user.client.post('/annotations/json', { json: { project, source: file.source, value } });
 
         return res.status === 200;
+      }
+    },
+    admin: {
+      routes: [{ method: 'GET', path: '/admin/json/projects' }, { method: 'POST', path: '/admin/json/projects/rename' }],
+      user: adminUser,
+      changeProject: async (admin, shortname) => {
+        const res = await admin.client.post('/admin/json/projects/rename', { json: { project: shortname, name: 'Renamed by an admin' } });
+        if (res.status !== 200) {
+          throw new Error(`renaming ${shortname}: ${res.status} ${res.text}`);
+        }
       }
     },
     expectedDifferences

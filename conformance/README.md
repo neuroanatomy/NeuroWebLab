@@ -16,7 +16,7 @@ Add a test file that mocha loads **after** the file that starts the app
 server; it never starts one. The app must run with `LOCALSIGNIN=true`.
 
 ```js
-const { accessMatrix, projectAnnotations, projectLifecycle, projectListings } = require('neuroweblab/conformance');
+const { accessMatrix, projectAdmin, projectAnnotations, projectLifecycle, projectListings } = require('neuroweblab/conformance');
 const U = require('./utils');
 
 const adapter = {
@@ -32,6 +32,11 @@ const adapter = {
     read: async (user, shortname, file) => ({ value: 1 }), write: async (user, shortname, file, value) => true // slice 4
   },
   setUserFields: (username, fields) => U.getNativeDB().collection('user').updateOne({ nickname: username }, { $set: fields }),
+  admin: { // slice 5
+    routes: [{ method: 'GET', path: '/admin/json/orphans' }, { method: 'POST', path: '/admin/json/orphans/remove' }],
+    user: async () => { /* sign up a user, make them an admin */ },
+    changeProject: async (admin, shortname) => { /* one admin action on the project, as the admin */ }
+  },
   expectedDifferences: {
     'route:files': 'ledger "Paged project files route"',
     '1.5/status': 'inventory 1.5: 403, not 401'
@@ -42,6 +47,7 @@ accessMatrix(adapter);
 projectLifecycle(adapter);
 projectListings(adapter);
 projectAnnotations(adapter);
+projectAdmin(adapter);
 ```
 
 The adapter (`adapter.js`, JSDoc types): `baseURL`; `createUser(name)` (default:
@@ -51,8 +57,8 @@ The adapter (`adapter.js`, JSDoc types): `baseURL`; `createUser(name)` (default:
 without an `anyone` row, which no app saves); `removeProject`, `removeUser`;
 `routes` (BrainBox's by default, `null` = not routed); `expectedDifferences`.
 Slice 2 also uses `versions`, `annotations.add`/`readable` and `fileList`,
-slice 3 `setUserFields` and `rows`, slice 4 `annotations.read`/`write`/`file`
-(below).
+slice 3 `setUserFields` and `rows`, slice 4 `annotations.read`/`write`/`file`,
+slice 5 `admin` (below).
 The two adapters in use are in the coordination folder,
 `tasks/shared-pm-tests-adapters/`.
 
@@ -61,7 +67,8 @@ The two adapters in use are in the coordination folder,
 Each check belongs to a rule, named by its row in the feature map
 (coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `2.1`,
 `2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.25` (slice 2, but 2.11 and
-2.21), `3.1` … `3.8` (slice 3), `4.1` … `4.4` (slice 4); `<row>/status` is the exact status code where only
+2.21), `3.1` … `3.8` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
+`5.4` (slice 5); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is
 `RULES`. A case whose failing checks are all declared is reported as pending,
 its title ending in `[known difference <rule>: …]`. A case with any other
@@ -193,6 +200,50 @@ null, client, token: null}`, `client` from `anonymousClient()`. Slice 2's
 for the other slice; a missing one fails that slice's setup or cases, naming
 it.
 
+## Slice 5: admin
+
+`projectAdmin(adapter)`, with the same adapter. The rules are the ones the
+maintainer approved on 2026-11-11 (coordination
+`tasks/proposed-shared-pm-tests.md`, "Slice 5: rules"):
+
+- 5.1 every admin JSON route in `admin.routes`: logged out **401**; a
+  logged-in non-admin **403**, by session and by token (`?token=`); an
+  admin's GET **200**, by session and by token. A POST (or DELETE) is
+  checked for its refusals only, sent with an empty JSON body: the suite
+  never sends an admin request that could change data;
+- 5.2 the admin page (`admin.page`): logged out **401** with the login prompt
+  (`Log in`, as both apps' `askForLogin` page), a non-admin 403, an admin 200
+  (by session);
+- 5.4 an admin change: the slice stores a project (`insertProject`, owned by
+  a non-admin, 2 files, `anyone` view), reads its versions, calls
+  `admin.changeProject(admin, shortname)`, and reads them again: one current
+  version, a new one; every earlier version still stored, unchanged but its
+  `backup: true`. The log and the lock stay per app.
+
+Each case is tagged with its row; 3 cases for the page, 1 for 5.4, 5 for
+each admin GET route and 3 for each other route (BrainBox 7 routes: 27,
+microdraw 13: 47). Not in the slice: 5.3, 5.5 (the tools differ by data
+model). The slice signs up a non-admin and gets an admin from `admin.user()`;
+both are removed by `removeUser` at the end.
+
+What it needs from the app, besides `insertProject`, `versions` and
+`removeUser`:
+
+- `admin.routes`: the admin JSON routes, `[{method, path}]` (GET, POST or
+  DELETE); a GET that needs a parameter carries it in its path (e.g.
+  `/admin/json/mri?url=…`, so the admin's 200 is the route's answer, not a
+  400);
+- `admin.page` (optional): the admin page, default `/admin`;
+- `admin.user()`: an admin, a `User` as `createUser`'s (e.g. signed up, then
+  added to the app's admins list);
+- `admin.changeProject(admin, shortname)`: one of the app's admin actions on
+  the project, as the admin (BrainBox restore-files, microdraw name-layers).
+  It may store versions of its own first (a save that lost a file, a layer
+  that lost its name) for the action to have something to fix: the slice
+  checks the versions it saw before the call.
+
+A field it lacks fails the cases that need it, naming the field.
+
 ## NeuroWebLab's own test
 
 `conformance/accessMatrix.spec.js` runs slice 1 on `test/conformanceApp.js`
@@ -213,4 +264,11 @@ highest level instead of the own row, a logged-out write accepted, a refused
 write that still stores, reads not checked, reads needing edit, writes not
 checked, writes needing add, an accepted write not stored), a declared
 difference, the missing functions, and each slice's annotation functions
-optional for the other. `test/conformanceHarness.js` starts the app for all.
+optional for the other. `conformance/projectAdmin.spec.js` does it for
+slice 5 (`test/conformanceAdmin.js`: a page, a GET, a POST that renames a
+project) with 7 variants (a non-admin let through, a token not counted as a
+login, the page open logged out, the page without the login prompt, an
+admin change that overwrites the current version without a backup, one that
+leaves the previous version current, one that changes the previous
+version), a declared difference, the missing fields, and the page's
+default. `test/conformanceHarness.js` starts the app for all.
