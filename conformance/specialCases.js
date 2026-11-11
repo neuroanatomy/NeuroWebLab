@@ -34,7 +34,9 @@ module.exports = ({ describe, it, C, names, users, runCase, request, fill }) => 
     it(`anonymous: GET ${R.json} of an unknown project answers no project (1.6)`, runCase('json', async (check) => {
       const res = await get(anonymous, 'json', { p: unknown() }, true);
       check('1.6', res.status !== 500 && !res.text.includes('"owner"'), `no project expected, got ${res.status} ${res.text.slice(0, 80)}`);
-      check('1.6/status', res.status === 200 && res.text === '', `200 with an empty body expected, got ${res.status} ${res.text.slice(0, 80)}`);
+      // decided 2026-11-11: 404 {error}, as the page and the files route
+      const body = C.parse(res.text);
+      check('1.6/status', res.status === 404 && Boolean(body) && typeof body.error === 'string', `404 {error} expected, got ${res.status} ${res.text.slice(0, 80)}`);
     }));
     it(`anonymous: GET ${R.page} of an unknown project is 404 (1.6)`, runCase('page', async (check) => {
       const res = await get(anonymous, 'page', { p: unknown() });

@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.7.0 — 2026-11
+
+### Changed
+
+- **`conformance`, slice 1: the statuses of rows 1.5 and 1.6**, as the
+  maintainer decided them on 2026-11-11 (coordination
+  `tasks/proposed-shared-pm-tests.md`, Log). `1.5/status`: a visitor
+  without `files: view` gets 401 logged out and 403 logged in (by session
+  or by token) on the project page, the settings, `GET /project/json/:p`
+  and `/files`; before, 401 for all on the first three and 403 for all on
+  `/files` (BrainBox's). An unknown token is logged out (1.12: 401).
+  `1.6/status`: `GET /project/json/:p` of an unknown project answers 404
+  with a JSON `{error}`; before, 200 with an empty body.
+- `checks.noViewStatus(who)`: the code expected.
+- The reference app answers the new statuses; 3 broken variants show each
+  can fail: `noView401` (401 for all), `noView403` (403 for all),
+  `unknownJSONEmpty` (200 empty). Only `<row>/status` fails on them.
+
+### What the apps must do
+
+Move the pin to `#v1.7.0`. BrainBox: 403 to logged-in visitors without the
+right, 401 logged out on `/files`, and 404 `{error}` for an unknown project's
+JSON. microdraw: 401 to logged-out visitors, and the route `/files`. Then
+remove `1.5/status`, `1.6/status` and `route:files` from
+`expectedDifferences`.
+
 ## 1.6.0 — 2026-11
 
 ### New

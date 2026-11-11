@@ -1,8 +1,9 @@
 /**
  * A minimal app for the conformance suite's own test: NeuroWebLab's auth
  * (local sign-in, token) and AccessControlService, with project routes that
- * follow the suite's rules (slice 1: BrainBox's; slices 2 to 4: the approved
- * ones, test/conformanceSave.js for the save; slice 5's admin routes,
+ * follow the suite's rules (slice 1: BrainBox's, with the statuses decided
+ * on 2026-11-11 for 1.5 and 1.6; slices 2 to 4: the approved ones,
+ * test/conformanceSave.js for the save; slice 5's admin routes,
  * test/conformanceAdmin.js). Projects are kept in memory, as
  * versions, and so are annotations (a value per file of a project).
  * `broken` options turn single rules off, to show the suite fails then.
@@ -40,6 +41,9 @@ const projectForUser = (project, who, broken) => {
 
   return copy;
 };
+
+/* No view right (1.5): 401 logged out, 403 logged in; `noView401`/`noView403`: one code for all, BrainBox's/microdraw's before 1.7.0 */
+const noViewStatus = (req, broken) => (broken.noView401 && 401) || (broken.noView403 && 403) || (req.user ? 403 : 401);
 
 const page = (name, json) => `<html><body><script>\nconst ${name}=${JSON.stringify(json)};\n</script></body></html>`;
 
@@ -205,10 +209,10 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
   app.get('/project/json/:p', authTokenMiddleware, (req, res) => {
     const p = find(req);
     if (!p) {
-      return res.send();
+      return broken.unknownJSONEmpty ? res.send() : res.status(404).json({ error: 'Project not found' });
     }
     if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(401).json({ error: 'Authorization required' });
+      return res.status(noViewStatus(req, broken)).json({ error: 'Not authorized to view the project' });
     }
     res.json(projectForUser(p, who(req), broken));
   });
@@ -218,7 +222,7 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
       return res.status(404).json({ error: 'no project' });
     }
     if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(403).json({ error: 'forbidden' });
+      return res.status(noViewStatus(req, broken)).json({ error: 'Not authorized to view the project' });
     }
     res.json(p.files.list.slice(Number(req.query.start), Number(req.query.start) + Number(req.query.length)));
   });
@@ -258,7 +262,7 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
       return res.status(404).send('Project Not Found');
     }
     if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(401).send('Authorization required');
+      return res.status(noViewStatus(req, broken)).send('Not authorized to view the project');
     }
     res.send(page('projectInfo', { ...projectForUser(p, who(req), broken), files: { list: [] } }));
   });
@@ -271,7 +275,7 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
       annotations: { list: [] }
     };
     if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(401).send('Authorization required');
+      return res.status(noViewStatus(req, broken)).send('Not authorized to view the project');
     }
     res.send(page('project', { ...projectForUser(p, who(req), broken), files: { list: [] } }));
   });

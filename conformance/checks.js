@@ -42,11 +42,11 @@ const accessRule = (c) => {
 };
 
 /**
- * Refused: 401 or 403 (the access rule), and BrainBox's code (`1.5/status`)
+ * Refused: 401 or 403 (the access rule), and the exact code (`1.5/status`)
  * @param {function} check The check function
  * @param {string} rule The access rule
  * @param {object} res The response
- * @param {number} status BrainBox's code
+ * @param {number} status The code expected
  * @returns {void}
  */
 const refused = (check, rule, res, status) => {
@@ -55,6 +55,12 @@ const refused = (check, rule, res, status) => {
     check('1.5/status', res.status === status, `status ${status} expected, got ${res.status}`);
   }
 };
+
+/*
+ * No view right (1.5, decided 2026-11-11): 401 logged out ("who are you?"),
+ * 403 logged in, by session or by token
+ */
+const noViewStatus = (who) => (who ? 403 : 401);
 
 /**
  * What a visitor may see of a project, decided on the stored project
@@ -81,7 +87,7 @@ const page = (c, res, check, names) => {
   const rule = accessRule(c);
   const s = sight(c, c.who);
   if (!s.files) {
-    return refused(check, rule, res, 401);
+    return refused(check, rule, res, noViewStatus(c.who));
   }
   check(rule, res.status === 200, `200 expected, got ${res.status}`);
   if (res.status === 200) {
@@ -97,7 +103,7 @@ const json = (c, res, check, names) => {
   const rule = accessRule(c);
   const s = sight(c, c.who);
   if (!s.files) {
-    return refused(check, rule, res, 401);
+    return refused(check, rule, res, noViewStatus(c.who));
   }
   check(rule, res.status === 200, `200 expected, got ${res.status}`);
   const body = parse(res.text) || {};
@@ -117,7 +123,7 @@ const files = (c, res, check) => {
   const rule = accessRule(c);
   const s = sight(c, c.who);
   if (!s.files) {
-    return refused(check, rule, res, 403);
+    return refused(check, rule, res, noViewStatus(c.who));
   }
   const body = parse(res.text);
   check(s.filesRule(rule), res.status === 200 && Array.isArray(body) && body.length === NFILES, `200 and ${NFILES} files expected, got ${res.status} ${res.text.slice(0, 80)}`);
@@ -157,4 +163,4 @@ const remove = (c, res, check) => {
   check('2.22', res.status === 200 && (parse(res.text) || {}).success === true, `200 and success expected, got ${res.status} ${res.text.slice(0, 80)}`);
 };
 
-module.exports = { files, json, listed, page, parse, refused, remove, rowName, save, shortnameOf };
+module.exports = { files, json, listed, noViewStatus, page, parse, refused, remove, rowName, save, shortnameOf };

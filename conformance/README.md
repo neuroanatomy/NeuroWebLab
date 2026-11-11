@@ -9,6 +9,13 @@ listing and the user's projects. HTTP only (Node's fetch); no browser, no
 WebSocket (slice 4 reads and writes annotations through the adapter, which
 may use one).
 
+Slice 1's statuses, as the maintainer decided them on 2026-11-11: a visitor
+without `files: view` gets **401** on the page, the settings, the JSON and
+`/files` when logged out, **403** when logged in, by session or by token
+(`1.5/status`; an unknown token is logged out); `GET /project/json/:p` of
+an unknown project answers **404** `{error}`, as the page and `/files`
+(`1.6/status`).
+
 ## Adopting it
 
 Add a test file that mocha loads **after** the file that starts the app
@@ -39,7 +46,7 @@ const adapter = {
   },
   expectedDifferences: {
     'route:files': 'ledger "Paged project files route"',
-    '1.5/status': 'inventory 1.5: 403, not 401'
+    '1.5/status': 'inventory 1.5: 401 logged in too, not 403'
   }
 };
 
