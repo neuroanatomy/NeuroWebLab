@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 — 2026-11
+
+### Fixed
+
+- `conformance`: the setup that signs up and logs in the suite's users (bcrypt)
+  has a budget of 1 s per user, so it no longer exceeds mocha's default 2 s on
+  slower machines (CI failed on 1.1.0). The tests keep the app's timeout.
+
 ## 1.1.0 — 2026-11
 
 ### New

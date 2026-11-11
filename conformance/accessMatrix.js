@@ -146,6 +146,10 @@ const accessMatrix = (appAdapter, { mocha = global, prefix = `cf${crypto.randomB
 
   describe('conformance slice 1: access matrix', function () {
     before(async function () {
+      // signing up and logging in hash passwords (bcrypt, slow on purpose): a budget per user,
+      // for this setup only; the tests keep the app's timeout
+      // eslint-disable-next-line no-invalid-this
+      this.timeout(Math.max(this.timeout(), 1000 * M.userKeys.length));
       const made = await Promise.all(M.userKeys.map((key) => adapter.createUser(names.user(key))));
       M.userKeys.forEach((key, i) => { users[key] = made[i]; });
     });
