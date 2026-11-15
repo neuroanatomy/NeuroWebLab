@@ -2,6 +2,8 @@ const auth = require('./auth/auth');
 const db = require('./db/db');
 const accessControl = require('./accessControl');
 const Configuration = require('./Configuration');
+const util = require('./util');
+const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
 
@@ -75,5 +77,8 @@ module.exports = {
   init,
   getTokenEndPoint,
   version,
-  ...accessControl
+  ...accessControl,
+  // 1.8.0: shared helpers (util/, auth/sessionUser.js)
+  ...util,
+  usernameFromCookie
 };

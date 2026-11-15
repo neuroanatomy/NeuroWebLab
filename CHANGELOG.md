@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.8.0 — 2026-11
+
+### New
+
+- **Shared helpers, exported from `require('neuroweblab')`** (stage 4,
+  merge M1). Each is the apps' code, with its behaviour unchanged:
+  - `escapeRegex(str)`: NeuroWebLab's own `db/escapeRegex.js`, now exported.
+  - `jsonForScript(value)`: JSON safe inside an inline `<script>`: `<`, `>`,
+    `&`, U+2028 and U+2029 become `\u` escapes (microdraw's `scriptJSON`;
+    BrainBox's `jsonForScript` did not escape `&`).
+  - `jsonForAttribute(value)`: the same, also safe inside a single-quoted
+    attribute (`'` escaped too; BrainBox's).
+  - `toId(id)`: the `ObjectId` (NeuroWebLab's driver) of a 24-digit hex
+    string in either case, else `null` (microdraw's; BrainBox's `toObjectId`
+    took lower case only).
+  - `catchErrors(handler, respond)`: an async Express handler whose error
+    answers 500 `{error: 'Server error'}` (or `respond(res)`) instead of
+    becoming an unhandled rejection; nothing is sent after the headers; the
+    error is logged with `req.log`, else `console` (microdraw's, which
+    fell back to its pino logger).
+  - `usernameFromCookie(sessionParser, cookie)`: the username of the
+    session a cookie belongs to, or `null` (for the WebSocket servers). It
+    reads `username` and the configured `usernameField` (microdraw read
+    `username` only, BrainBox `username` or `nickname`).
+- Module `util/` (`require('neuroweblab/util')`), one file per helper;
+  `usernameFromCookie` is in `auth/sessionUser.js`. Unit specs next to each
+  file, with the apps' cases and new ones; `test/exports.spec.js` checks the
+  root exports.
+- Nothing is renamed or removed; every 1.7.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required. The apps may move the pin to `#v1.8.0` and replace
+their copies: microdraw `escape.js` `scriptJSON` (keep `escapeHTML`),
+`toId.js`, `catchErrors.js`, `microdrawWebsocketServer/sessionUser.js` and
+its three `escapeRegex`/`escapeRegExp` (M1b); BrainBox
+`utils/jsonForScript.js`, `admin.projects.js` `toObjectId`, the cookie part
+of `atlas-write-access.js` and its two `escapeRegex` (M1c). In BrainBox,
+inline JSON then also escapes `&` (the same value once parsed).
+
 ## 1.7.0 — 2026-11
 
 ### Changed

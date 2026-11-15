@@ -7,6 +7,18 @@ Come check out our vision [here](https://neuroweblab.github.io/).
 
 <img src="./images/Neuroweblab.png"></img>
 
+## Helpers
+
+Small functions the apps share, exported from `require('neuroweblab')` (since 1.8.0):
+
+- `escapeRegex(str)`: user text matched literally in a MongoDB `$regex`.
+- `jsonForScript(value)`, `jsonForAttribute(value)`: JSON to write into an inline `<script>` (`<`, `>`, `&`, U+2028, U+2029 escaped), or into a single-quoted attribute (`'` too).
+- `toId(id)`: the `ObjectId` of a 24-digit hex string in either case, else `null`.
+- `catchErrors(handler, respond)`: wraps an async Express handler; an error answers 500 `{error: 'Server error'}` (or `respond(res)`) unless headers were sent, and is logged with `req.log` or `console`.
+- `usernameFromCookie(sessionParser, cookie)`: the username of the session a WebSocket's cookie belongs to, or `null`; reads `username` and the configured `usernameField`.
+
+They live in `util/` (and `auth/sessionUser.js`), each with its spec next to it.
+
 ## Yearly Node upgrade
 
 All NAAT repos (NeuroWebLab, nwl-components, BrainBox, microdraw) run the current Node LTS, declared in each repo's `.nvmrc`. The workflow `.github/workflows/yearly-node-upgrade.yml` runs on the 1st of every month. Each run re-enables the workflow through the GitHub API, so the schedule isn't disabled after 60 days without commits; outside November that's all it does ("keepalive only"). The issue is still yearly: in November it finds the newest Node LTS on nodejs.org, checks that the unofficial `linux-x64-glibc-217` builds exist for it (the production servers run CentOS 7), and, if that LTS is newer than `.nvmrc`, opens an issue labelled `node-upgrade` with the checklist for the four repos and both servers (deadline: 1 May). It doesn't open a second issue while one is still open, and it only logs a line when the repos are already on the newest LTS.

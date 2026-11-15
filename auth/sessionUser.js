@@ -15,6 +15,8 @@
  * they are read back, until those users log in again.
  */
 
+const Configuration = require('../Configuration');
+
 const PUBLIC_FIELDS = ['name', 'avatarURL', 'url', 'joined'];
 
 /**
@@ -48,4 +50,35 @@ const toSessionUser = (user, usernameField) => {
   return out;
 };
 
-module.exports = { toSessionUser, PUBLIC_FIELDS };
+/**
+ * The username of the session a cookie belongs to: who opened a WebSocket
+ * connection, from the session cookie the browser sent with the upgrade
+ * request (microdraw's `sessionUser.js`, the cookie part of BrainBox's
+ * `atlas-write-access.js`). Never the username a client puts in its messages.
+ * The session user is read under `username` or, for sessions stored by
+ * earlier versions (whole documents), the configured `usernameField`.
+ * @param {function} sessionParser The app's session middleware (express-session)
+ * @param {string} cookie The Cookie header sent when the socket was opened
+ * @returns {Promise<string|null>} The username, or null for a logged-out visitor
+ */
+const usernameFromCookie = (sessionParser, cookie) => new Promise((resolve) => {
+  if (typeof sessionParser !== 'function' || typeof cookie !== 'string' || cookie.length === 0) {
+    resolve(null);
+
+    return;
+  }
+  // a fresh request each time, so that a logout or an expired session counts
+  const req = { headers: { cookie }, url: '/', originalUrl: '/' };
+  try {
+    sessionParser(req, {}, (err) => {
+      const user = !err && req.session && req.session.passport && req.session.passport.user;
+      const { usernameField } = Configuration.getInstance();
+      const username = user && typeof user === 'object' && (user.username || user[usernameField]);
+      resolve(typeof username === 'string' && username.length > 0 ? username : null);
+    });
+  } catch (err) {
+    resolve(null);
+  }
+});
+
+module.exports = { toSessionUser, usernameFromCookie, PUBLIC_FIELDS };
