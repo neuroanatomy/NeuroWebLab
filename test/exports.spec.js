@@ -8,6 +8,9 @@ const projectRules = require('../project/rules');
 const admin = require('../admin');
 const adminAdmins = require('../admin/admins');
 const adminActions = require('../admin/actions');
+const embed = require('../embed');
+const embedTickets = require('../embed/tickets');
+const routesProjectEmbed = require('../routes/projectEmbed');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -72,6 +75,28 @@ describe('root exports', () => {
     const admins = nwl.createAdmins();
     for (const name of ['getAdmins', 'setAdmins', 'isAdmin', 'requestUsername', 'requireAdmin', 'adminPage']) {
       assert.isFunction(admins[name], name);
+    }
+  });
+
+  it('1.12.0: each embed export is exported, as the module that holds it', () => {
+    for (const name of ['mintWsTicket', 'findWsTicket', 'ensureTicketIndex']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], embed[name], name);
+      assert.strictEqual(nwl[name], embedTickets[name], name);
+    }
+    assert.strictEqual(nwl.WS_TICKET_COLLECTION, 'embedWsTicket');
+    assert.strictEqual(nwl.WS_TICKET_DURATION, 6 * 3600 * 1000);
+    assert.strictEqual(nwl.WS_TICKET_COLLECTION, embedTickets.WS_TICKET_COLLECTION);
+    assert.strictEqual(nwl.WS_TICKET_DURATION, embedTickets.WS_TICKET_DURATION);
+    for (const name of ['projectEmbedRoute', 'firstSource']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], routesProjectEmbed[name], name);
+    }
+  });
+
+  it('every 1.11.0 export is still there', () => {
+    for (const name of ['createAdmins', 'requestUsername', 'sendResult', 'adminLog']) {
+      assert.isFunction(nwl[name], name);
     }
   });
 

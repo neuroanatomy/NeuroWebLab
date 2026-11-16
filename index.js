@@ -5,6 +5,8 @@ const Configuration = require('./Configuration');
 const util = require('./util');
 const project = require('./project');
 const admin = require('./admin');
+const embed = require('./embed');
+const { projectEmbedRoute, firstSource } = require('./routes/projectEmbed');
 const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
@@ -87,5 +89,9 @@ module.exports = {
   // 1.10.0: validation helpers (project/rules.js)
   ...project,
   // 1.11.0: admin access (admin/)
-  ...admin
+  ...admin,
+  // 1.12.0: embed tickets (embed/) and the Embed Project route (routes/)
+  ...embed,
+  projectEmbedRoute,
+  firstSource
 };

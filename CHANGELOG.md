@@ -1,5 +1,119 @@
 # Changelog
 
+## 1.12.0 — 2026-11
+
+### New
+
+- **Embed tickets and the Embed Project route, exported from
+  `require('neuroweblab')`** (stage 4, merge M5). The apps' code (microdraw
+  7fc4ea3 `app/controller/embed/EmbedAccessService.js`, its two indexes in
+  `app/controller/indexes.js` and `projectEmbed` in `embed.controller.js`;
+  BrainBox 63cf121 `services/EmbedAccessService.js` and
+  `controller/project/project-embed.js`), in `embed/` and `routes/`:
+  - `WS_TICKET_COLLECTION` (`'embedWsTicket'`) and `WS_TICKET_DURATION`
+    (6 h): the same in both apps.
+  - `mintWsTicket(db, scope)`: stores `{ token, ...scope, username,
+    createdAt, expiryDate }` and returns the token (24 random bytes, hex).
+    The scope is stored as given, no field renamed or normalised: BrainBox's
+    `{ dirname, mriSource, username }`, microdraw's `{ source, project,
+    username }`. `username` is `null` when the scope doesn't give one.
+  - `findWsTicket(db, token)`: the ticket, or `null` for a non-string or
+    empty token, an unknown or expired ticket, or a ticket without a `Date`
+    `expiryDate` (microdraw's checks).
+  - `ensureTicketIndex(db, { logger })`: creates `token_1` on `{ token: 1 }`
+    and `expiryDate_1` on `{ expiryDate: 1 }` with `expireAfterSeconds: 0`,
+    microdraw's names and options, so on microdraw's database it is a no-op.
+    It never rejects: an index that fails gives
+    `logger.warn({ err, index }, 'cannot create the embedWsTicket index')`
+    (default `console`).
+  - `projectEmbedRoute(adapter)`: the Express handler of
+    `GET /project/:projectName/embed`. It sets
+    `Content-Security-Policy: frame-ancestors *`; then
+    `adapter.findProject(req, shortname)` (none: 404 `This project could not
+    be found.`); the first file (none: 404 `adapter.noFilesMessage`);
+    `adapter.mayEmbed(req, { source, project })` → `{ status, message }`
+    (not 200: that answer); else 302 to `adapter.embedURL(source,
+    project.shortname)`. Errors are rendered by
+    `adapter.embedError(res, status, message)`. A thrown error is logged with
+    `req.log` or `console` (as `catchErrors`) and answers 500
+    `adapter.serverErrorMessage`, unless headers were sent.
+  - `firstSource(project)`: the first non-empty string of `files.list`
+    (strings or `{ source }` objects), else `null`.
+- Unit specs in `embed/tickets.spec.js` (against the test MongoDB) and
+  `routes/projectEmbed.spec.js`; `test/exports.spec.js` checks the new names.
+  The apps' route tests (microdraw `embed.spec.js`, BrainBox `embed.test.js`
+  E14) stay in the apps.
+- Nothing is renamed or removed; every 1.11.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required. The apps may replace their copies (M5b microdraw, M5c
+BrainBox).
+
+**microdraw** (M5b):
+- `EmbedAccessService.js` re-exports NWL's functions. Its
+  `project: project || null` moves to its caller, `dataEmbed`:
+  `mintWsTicket(db, { source, project: decision.project ? decision.project.shortname : null, username })`
+  already passes `null` for no project, so nothing changes in the tickets.
+- `ensureIndexes` may keep its two `embedWsTicket` rows, or call
+  `ensureTicketIndex(db, { logger: log })`: same indexes.
+- `projectEmbed` becomes:
+
+```js
+const { projectEmbedRoute } = require('neuroweblab');
+
+projectEmbed: projectEmbedRoute({
+  findProject: (req, shortname) => findCurrentProject(req.app.db.nativeMongoDB(), shortname),
+  mayEmbed: (req, { source, project }) => mayEmbedData(req.app.db.nativeMongoDB(), {
+    source, project: project.shortname, username: usernameOf(req)
+  }),
+  embedURL: (source, project) => `/data/embed?${new URLSearchParams({ source, project })}`,
+  embedError,
+  noFilesMessage: 'This project has no dataset.',
+  serverErrorMessage: 'This dataset could not be loaded.'
+})
+```
+
+**BrainBox** (M5c):
+- `services/EmbedAccessService.js` stays an object that re-exports NWL's
+  functions (a spec stubs `findWsTicket` on it with sinon).
+- Call `ensureTicketIndex(nativeDb)` at start-up: BrainBox has no index on
+  `embedWsTicket` yet, so expired tickets start being removed by MongoDB.
+- `findWsTicket` is stricter: a truthy non-string token (an array or object
+  from a parsed query) was looked up before, and now gives `null`; so does a
+  ticket without a `Date` expiry.
+- `projectEmbed` becomes:
+
+```js
+const { projectEmbedRoute } = require('neuroweblab');
+
+const noBrain = { status: 404, message: 'This project has no brain to show.' };
+
+const projectEmbed = projectEmbedRoute({
+  findProject: (req, shortname) => req.nativeDb.collection('project')
+    .findOne({ shortname, backup: { $exists: false } }, { projection: { _id: 0 } }),
+  mayEmbed: async (req, { source }) => {
+    const json = await req.nativeDb.collection('mri')
+      .findOne({ source, backup: { $exists: false } }, { projection: { _id: 0 } });
+    if (!json) { return noBrain; }
+    const projects = await getRelatedProjects(req.nativeDb, json, source);
+    const loggedUser = req.isAuthenticated() ? req.user.username : 'anonymous';
+
+    return mayEmbedMri(json, projects, loggedUser) ? { status: 200 } : { status: 403, message: 'This content is private.' };
+  },
+  embedURL: (url, project) => `/mri/embed?${new URLSearchParams({ url, project })}`,
+  embedError,
+  noFilesMessage: noBrain.message,
+  serverErrorMessage: 'This project could not be shown.'
+});
+```
+
+  The answers are BrainBox's: no project 404, no file or no MRI document
+  404 `This project has no brain to show.`, private 403, else 302. Only the
+  log line of a thrown error changes (`req.log || console`.error, as
+  `catchErrors`, instead of `console.log('ERROR projectEmbed:', err)`), and a
+  thrown error after headers were sent no longer tries a second answer.
+
 ## 1.11.0 — 2026-11
 
 ### New

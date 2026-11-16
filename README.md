@@ -20,7 +20,9 @@ Small functions the apps share, exported from `require('neuroweblab')` (since 1.
 - Validating a project (since 1.10.0, `project/rules.js`): `plainText(str)` (markup removed by DOMPurify over jsdom, text kept), `sanitize(value)` (every string of a JSON value, as `plainText`), `isBlank(v)`, `text(v)`, `listOf(project, type)`, `isBlankRow` (blank rows by list), `sortRows(type, rows, oldRows, {rowKey, isBlankRow})` (stored, new and blank rows; `rowKey` is the app's), `shortnamePattern` (a new shortname: letters, numbers, hyphens), `droppedMessage(dropped)` (the "Empty rows were not saved" text).
 - Admin access (since 1.11.0, `admin/`): `createAdmins({cfgPath, logger})` (an app's admins list from its cfg.json, with `getAdmins`, `setAdmins`, `isAdmin`, `requestUsername`, `requireAdmin` (401/403 JSON) and `adminPage({title, userPayload, loginPrompt})` bound to it), `requestUsername(req)`, `sendResult(res, action, {logger})` (an admin action's answer, 500 logged), `adminLog(db, key, value, {logger, fields})` (an entry in `log`, returned with its `_id`; a log line only with a `logger`).
 
-They live in `util/` (and `auth/sessionUser.js`, `project/`, `admin/`), each with its spec next to it.
+- Embed (since 1.12.0, `embed/`, `routes/`): `mintWsTicket(db, scope)` (an embed's WebSocket ticket, its scope stored as given, 6 h), `findWsTicket(db, token)` (the ticket, or `null`), `ensureTicketIndex(db, {logger})` (`token_1` and the TTL index `expiryDate_1`; never rejects), `WS_TICKET_COLLECTION`, `WS_TICKET_DURATION`, `projectEmbedRoute(adapter)` (`GET /project/:projectName/embed`: 404s, the app's refusal, or 302 to the first file's embed) and `firstSource(project)`.
+
+They live in `util/` (and `auth/sessionUser.js`, `project/`, `admin/`, `embed/`, `routes/`), each with its spec next to it.
 
 ## Yearly Node upgrade
 
