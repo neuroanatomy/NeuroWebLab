@@ -11,6 +11,7 @@ const adminActions = require('../admin/actions');
 const embed = require('../embed');
 const embedTickets = require('../embed/tickets');
 const routesProjectEmbed = require('../routes/projectEmbed');
+const routesNotFound = require('../routes/notFound');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -92,6 +93,23 @@ describe('root exports', () => {
       assert.isFunction(nwl[name], name);
       assert.strictEqual(nwl[name], routesProjectEmbed[name], name);
     }
+  });
+
+  it('1.13.0: the 404 and error handler exports are exported, as the module that holds them', () => {
+    for (const name of ['wantsJSON', 'wantsPage', 'displayPath', 'notFound', 'errorHandler']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], routesNotFound[name], name);
+    }
+    assert.lengthOf(nwl.notFound(), 2);
+    assert.lengthOf(nwl.errorHandler(), 4);
+  });
+
+  it('every 1.12.0 export is still there', () => {
+    for (const name of ['mintWsTicket', 'findWsTicket', 'ensureTicketIndex', 'projectEmbedRoute', 'firstSource']) {
+      assert.isFunction(nwl[name], name);
+    }
+    assert.exists(nwl.WS_TICKET_COLLECTION);
+    assert.exists(nwl.WS_TICKET_DURATION);
   });
 
   it('every 1.11.0 export is still there', () => {

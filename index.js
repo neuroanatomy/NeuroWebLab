@@ -7,6 +7,7 @@ const project = require('./project');
 const admin = require('./admin');
 const embed = require('./embed');
 const { projectEmbedRoute, firstSource } = require('./routes/projectEmbed');
+const { wantsJSON, wantsPage, displayPath, notFound, errorHandler } = require('./routes/notFound');
 const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
@@ -93,5 +94,11 @@ module.exports = {
   // 1.12.0: embed tickets (embed/) and the Embed Project route (routes/)
   ...embed,
   projectEmbedRoute,
-  firstSource
+  firstSource,
+  // 1.13.0: the 404 catch-all and the error handler (routes/notFound.js)
+  wantsJSON,
+  wantsPage,
+  displayPath,
+  notFound,
+  errorHandler
 };

@@ -1,5 +1,74 @@
 # Changelog
 
+## 1.13.0 — 2026-11
+
+### New
+
+- **The 404 catch-all and the error handler, exported from
+  `require('neuroweblab')`** (stage 4, merge M6), in `routes/notFound.js`.
+  BrainBox's `controller/routes/not-found.js` (a211440) is the reference;
+  microdraw's `notFoundKind`, `shownPath` and its two handlers in
+  `app/app.js` do the same with small differences (below).
+  - `wantsJSON(req)`: the request accepts JSON before HTML, or its path is
+    under `/api/`, or matches `/\/json(\/|$)/` (`…/json/…` and `…/json`).
+  - `wantsPage(req)`: a GET or HEAD that accepts HTML, at a path without an
+    extension, or `.html`, `.htm`.
+  - `displayPath(req)`: the decoded path, or the path as sent when an escape
+    is malformed.
+  - `notFound({ view = 'error' })`: a factory; the catch-all answers 404 as
+    JSON `{error: 'Not found'}`, as the page `view` with `message: 'Page not
+    found'` and `path`, or as plain text `Not found`. Nothing is logged.
+  - `errorHandler({ view = 'error', isDevelopment, onError })`: a factory;
+    BrainBox's handler. Headers sent: `next(err)`. The status is
+    `err.status || err.statusCode || 500`. A 5xx message is "Server error"
+    outside development (`isDevelopment(req)`, by default the app's env is
+    `'development'`). JSON `{error: message}` for a `wantsJSON` request, else
+    the page `view` with `message` and `error` (the error in development,
+    `{status}` outside it). `onError(err, req, res)` is called for every
+    error before answering (not when headers were sent); the default is
+    BrainBox's `console.error('ERROR:', req.method, req.originalUrl, err)`,
+    for a 5xx only.
+- Unit specs in `routes/notFound.spec.js` (a small Express app on Node's
+  fetch, a view that answers its locals); `test/exports.spec.js` checks the
+  new names.
+- Nothing is renamed or removed; every 1.12.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required. The apps may replace their copies (M6b microdraw, M6c
+BrainBox).
+
+**BrainBox** (M6c), no change in behaviour:
+
+```js
+const { notFound, errorHandler } = require('neuroweblab');
+
+app.use(notFound());
+app.use(errorHandler());
+```
+
+and `controller/routes/not-found.js` can go.
+
+**microdraw** (M6b): `notFoundKind`, `shownPath` and the two handlers go;
+
+```js
+const { notFound, errorHandler } = require('neuroweblab');
+
+app.use(notFound());
+// logged with the request line (pino-http reads res.err), for every status
+app.use(errorHandler({ onError: (err, req, res) => { res.err = err; } }));
+```
+
+What microdraw will see change:
+- `…/json` at the end of a path, with no slash after it, is answered as
+  JSON (it was HTML or text).
+- Errors from JSON requests are answered as JSON (they were always the HTML
+  page).
+- A 5xx message is hidden outside development (it was always shown).
+- The error page gets `error: {status}` outside development (it was `{}`),
+  so `{{error.status}}` now shows the status number.
+- Headers already sent: the error is passed on (it was rendering again).
+
 ## 1.12.0 — 2026-11
 
 ### New
