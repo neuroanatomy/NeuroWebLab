@@ -1,5 +1,75 @@
 # Changelog
 
+## 1.9.0 — 2026-11
+
+### New
+
+- **Save rights for a project's own fields, and the incomplete files list
+  guard, exported from `require('neuroweblab')`** (stage 4, merge M2). The
+  apps' code, the same in both since 2026-11-15 (microdraw a3dd277,
+  BrainBox e97e408), in `project/save.js`:
+  - `canSaveProject(oldProject, user)`: whether a user may save an existing
+    project: `edit` on at least one of its lists (both apps).
+  - `keepFieldsWithoutFilesEdit(newProject, oldProject, user, {sanitize})`:
+    without `files: edit`, each of the project's own fields (name,
+    description, url, created, any field that is not a list, the owner,
+    shortname, `_id`, `backup`, `modified`, `modifiedBy` or `filesLoaded`)
+    gets its stored value back, or is removed if the stored project lacks
+    it; returns the fields put back. A field sent empty that the stored
+    project lacks is unchanged. BrainBox's version: with `sanitize` (the
+    app's sanitiser of the body), a value equal to the stored one once
+    sanitised is unchanged too; without it, microdraw's.
+  - `saveRefusal()`: the body of the 403 answer to a save `canSaveProject`
+    refuses, `{success: false, error, message}`, the reason in `error`
+    and `message` (both apps' text); a new object each call.
+  - `ignoredChangesMessage(ignored)`: `' Some changes (on a, b) were ignored due to
+    a lack of permissions.'`, with its leading space, each name once, or
+    `''` when nothing was ignored (both apps' text). Named so as not to clash with the apps' own
+    `droppedMessage` (the empty rows left out), which stays in the apps.
+  - `filesListIncomplete(newProject, oldProject, dropped)`: true if the
+    project was sent with a `filesLoaded` that is not an object whose
+    `count` is the stored files list's length (a stored project without a
+    files list has 0 files; without `filesLoaded`, or without a stored
+    project, false). It changes neither project: the caller puts the stored
+    list back and deletes `filesLoaded`. If `dropped` is given and the list
+    is incomplete, it sets `dropped.files = 0` (microdraw's version, which
+    did that in its caller).
+- Module `project/` (`require('neuroweblab/project')`), with its unit specs
+  (`project/save.spec.js`); `test/exports.spec.js` checks the root exports.
+- Nothing is renamed or removed; every 1.8.0 export is unchanged, and so is
+  `AccessControlService.preventUnauthorizedUpdates`.
+
+### Changed
+
+- **`conformance`, slice 1 and slice 2, row 2.2**: a save needs `edit` on
+  at least one list of the stored version, no longer `files: edit` (the
+  rule of both apps since 2026-11-15). Slice 1 has a new member in its
+  private project, files view, collaborators view, annotations edit: their
+  save of the stored document is accepted (200, `success: true`). Slice 2
+  has a new collaborator with the same rights: their save changing the
+  layer's name and the project's name is accepted, the layer stored, the
+  name kept as stored, and the message says `Some changes (on …name…) were
+  ignored due to a lack of permissions.` (and does not name the
+  annotations).
+- **`conformance`, slice 2, new row 2.21**: the owner's save of a project
+  with a shorter files list and `filesLoaded: {count: 1}` (2 stored) keeps
+  the stored files list and stores the save's other change (the name).
+- The reference app (`test/conformanceSave.js`) uses the new helpers; 3 new
+  broken variants show the new cases fail: `filesEditToSave` (2.2, in
+  slices 1 and 2), `fieldsUnchecked` (2.2), `noFilesGuard` (2.21).
+
+### What the apps must do
+
+Moving the pin to `#v1.9.0` brings in suite cases 2.2 (changed) and 2.21
+(new). Both apps pass them as they are (microdraw a3dd277 and later,
+BrainBox e97e408 and later): nothing is required to pass. The apps may then
+replace their copies with the helpers: microdraw `canSaveProject`,
+`keepFieldsWithoutFilesEdit`, `filesListIncomplete` and the 403 body in
+`project.controller.js` (M2b); BrainBox the same, its inline files guard
+with `filesListIncomplete`, moved before the rights check as in microdraw,
+and `keepFieldsWithoutFilesEdit` given `{sanitize: sanitizeValue}` (M2c).
+An app that names an incomplete list's dropped files must pass `dropped`.
+
 ## 1.8.0 — 2026-11
 
 ### New

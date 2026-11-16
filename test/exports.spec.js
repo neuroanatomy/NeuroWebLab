@@ -2,6 +2,8 @@ const { assert } = require('chai');
 
 const nwl = require('../index');
 const util = require('../util');
+const project = require('../project');
+const projectSave = require('../project/save');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -25,6 +27,20 @@ describe('root exports', () => {
     assert.isFunction(nwl.usernameFromCookie);
     assert.strictEqual(nwl.usernameFromCookie, sessionUser.usernameFromCookie);
     assert.strictEqual(nwl.escapeRegex, dbEscapeRegex.escapeRegex);
+  });
+
+  it('1.9.0: each save helper is exported, as the module that holds it', () => {
+    for (const name of ['canSaveProject', 'keepFieldsWithoutFilesEdit', 'saveRefusal', 'ignoredChangesMessage', 'filesListIncomplete']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectSave[name], name);
+    }
+  });
+
+  it('every 1.8.0 export is still there', () => {
+    for (const name of ['escapeRegex', 'jsonForScript', 'jsonForAttribute', 'toId', 'catchErrors', 'usernameFromCookie']) {
+      assert.isFunction(nwl[name], name);
+    }
   });
 
   it('toId gives the root ObjectId', () => {

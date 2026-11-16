@@ -1,11 +1,21 @@
 /**
- * Slice 2 cases: saving needs a login (2.1) and `files: edit` on the stored
- * version (2.2); lists grow with `add`, shrink with `remove` (2.3); rows
- * change in place with `edit` (2.4); the owner is never the client's (2.5).
+ * Slice 2 cases: saving needs a login (2.1) and `edit` on at least one list
+ * of the stored version, the project's own fields `files: edit` (2.2); lists
+ * grow with `add`, shrink with `remove` (2.3); rows change in place with
+ * `edit` (2.4); the owner is never the client's (2.5); a files list sent
+ * before the settings page received every file is not saved (2.21).
  */
+const { parse } = require('./checks');
 const { uniform } = require('./matrix');
 
 const level = (t, project, username, type) => ((t.rowOf(project, username) || {}).access || {})[type];
+
+// the lists and fields a save's message says were ignored (both apps' text, NWL ignoredChangesMessage)
+const ignoredIn = (message) => {
+  const m = (/Some changes \(on ([^)]*)\) were ignored due to a lack of permissions\./).exec(message);
+
+  return m ? m[1].split(',').map((s) => s.trim()) : null;
+};
 
 // eslint-disable-next-line max-lines-per-function
 module.exports = (t) => {
@@ -22,7 +32,7 @@ module.exports = (t) => {
       check('2.1', !t.exists(await t.json(shortname)), 'the project was stored');
     }));
 
-    it('collaborator with files view: a save is refused 403, also when the document gives them files edit; nothing changes (2.2)', runCase('save', async (check) => {
+    it('collaborator with view on every list: a save is refused 403 (edit on at least one list needed), also when the document gives them files edit; nothing changes (2.2)', runCase('save', async (check) => {
       const { shortname, doc } = await t.create('viewerSave');
       const sent = t.copy(doc);
       sent.name = 'Changed by a viewer';
@@ -31,6 +41,20 @@ module.exports = (t) => {
       check('2.2', res.status === 403, `403 expected, got ${res.status}`);
       const stored = await t.json(shortname);
       check('2.2', stored.name === doc.name && level(t, stored, users.viewer.username, 'files') === 'view', `the stored project changed: ${stored.name}, files ${level(t, stored, users.viewer.username, 'files')}`);
+    }));
+
+    it('collaborator with annotations edit, files view: a layer changed in place is stored, a name change in the same save is ignored, with the message (2.2)', runCase('save', async (check) => {
+      const { shortname, doc } = await t.create('annotationsEditor');
+      const sent = t.copy(doc);
+      sent.annotations.list[0].name = 'Renamed by the annotations editor';
+      sent.name = 'Renamed by the annotations editor';
+      const res = await t.save(users.annotationsEditor, shortname, sent);
+      check('2.2', res.status === 200 && (parse(res.text) || {}).success === true, `200 and success expected, got ${res.status} ${res.text.slice(0, 120)}`);
+      const ignored = ignoredIn(t.message(res));
+      check('2.2', Boolean(ignored) && ignored.includes('name') && !ignored.includes('annotations'), `"Some changes (on …name…) were ignored due to a lack of permissions." expected, without annotations, got ${JSON.stringify(t.message(res))}`);
+      const stored = await t.json(shortname);
+      check('2.2', t.layerNames(stored)[0] === 'Renamed by the annotations editor', `the layer changed expected, got ${JSON.stringify(t.layerNames(stored))}`);
+      check('2.2', stored.name === doc.name, `the stored name ${JSON.stringify(doc.name)} expected, got ${JSON.stringify(stored.name)}`);
     }));
 
     it('collaborator with edit: a collaborator, a file and a layer added are ignored: 200, "ignored", the stored lists kept (2.3)', runCase('save', async (check) => {
@@ -101,6 +125,20 @@ module.exports = (t) => {
       const res = await t.save(users.editor, shortname, sent);
       const stored = await t.json(shortname);
       check('2.4', res.status === 200 && level(t, stored, users.viewer.username, 'files') === 'edit' && t.layerNames(stored)[0] === 'Renamed layer', `200 and the changes stored expected, got ${res.status}, ${JSON.stringify(t.layerNames(stored))}`);
+    }));
+
+    it('owner: a save whose filesLoaded.count differs from the stored count keeps the stored files list, and saves its other changes (2.21)', runCase('save', async (check) => {
+      const { shortname, doc } = await t.create('filesLoaded');
+      const sent = t.copy(doc);
+      sent.files.list = [sent.files.list[0]];
+      sent.filesLoaded = { count: 1 };
+      sent.name = 'Saved before every file arrived';
+      const res = await t.save(users.owner, shortname, sent);
+      check('2.21', res.status === 200, `200 expected, got ${res.status} ${res.text.slice(0, 120)}`);
+      const stored = await t.json(shortname);
+      const sources = doc.files.list.map((f) => f.source);
+      check('2.21', JSON.stringify(t.sources(stored)) === JSON.stringify(sources), `the stored files ${JSON.stringify(sources)} expected, got ${JSON.stringify(t.sources(stored))}`);
+      check('2.21', stored.name === sent.name, `the name changed expected, got ${JSON.stringify(stored.name)}`);
     }));
 
     it('a new project naming another user as owner belongs to its creator (2.5)', runCase('save', async (check) => {

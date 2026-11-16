@@ -28,7 +28,9 @@ const memberAccess = [
   ...LEVELS.map(uniform),
   access('view', 'none', 'view'),
   access('view', 'view', 'none'),
-  access('view', 'none', 'none')
+  access('view', 'none', 'none'),
+  // 1.9.0: edit on the annotations only, files view: they may save (2.2), their own fields need files edit
+  access('view', 'view', 'edit')
 ];
 
 /* The `anyone` rows of the public projects */

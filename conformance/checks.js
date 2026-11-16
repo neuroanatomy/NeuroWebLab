@@ -135,6 +135,9 @@ const listed = (c, found, check) => {
   check(accessRule(c), found === s.files, s.files ? 'the project is not listed' : 'a project the visitor may not view is listed');
 };
 
+/* Saving needs edit on at least one list of the stored version (2.2, 2026-11-15) */
+const maySave = (project, who) => ['files', 'collaborators', 'annotations'].some((type) => can(project, who, type, 'edit'));
+
 /* POST /project/json/:p, the stored document sent back unchanged */
 const save = (c, res, check) => {
   if (!c.who) {
@@ -144,7 +147,7 @@ const save = (c, res, check) => {
 
     return;
   }
-  if (!can(projects[c.projectKey], c.who, 'files', 'edit')) {
+  if (!maySave(projects[c.projectKey], c.who)) {
     check('2.2', res.status === 403, `403 expected, got ${res.status}`);
 
     return;
@@ -163,4 +166,4 @@ const remove = (c, res, check) => {
   check('2.22', res.status === 200 && (parse(res.text) || {}).success === true, `200 and success expected, got ${res.status} ${res.text.slice(0, 80)}`);
 };
 
-module.exports = { files, json, listed, noViewStatus, page, parse, refused, remove, rowName, save, shortnameOf };
+module.exports = { files, json, listed, maySave, noViewStatus, page, parse, refused, remove, rowName, save, shortnameOf };

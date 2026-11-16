@@ -58,6 +58,15 @@ describe('conformance: slice 1 on an app that follows BrainBox\'s rules', functi
       });
     }
 
+    it('filesEditToSave (the save rule before 2026-11-15): 2.2 fails on the member with annotations edit only, and nothing else', async function () {
+      h.broken.filesEditToSave = true;
+      const { failed, passes } = await h.runNested(accessMatrix, h.adapter({}), /POST /);
+      assert.ok(failed.length > 0, 'no failure');
+      assert.deepStrictEqual(failed.filter((f) => !f.rules.every((r) => r === '2.2')), [], 'failures other than 2.2');
+      assert.ok(failed.every((f) => (/annotations edit/).test(f.title)), JSON.stringify(failed.map((f) => f.title)));
+      assert.ok(passes > 0, 'no case passed');
+    });
+
     it('a declared difference that no longer differs is reported', async function () {
       const { failed } = await h.runNested(accessMatrix, h.adapter({ '1.9': 'test' }), grep);
       assert.deepStrictEqual(failed.map((f) => f.title), ['every declared difference still differs']);

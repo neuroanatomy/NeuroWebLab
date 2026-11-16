@@ -4,7 +4,9 @@
  * `broken` option turns one rule off, so the suite's own test can show the
  * suite catches it.
  */
-const { AccessControlService: ACS, AccessLevel } = require('../index');
+const {
+  AccessControlService: ACS, AccessLevel, canSaveProject, ignoredChangesMessage, filesListIncomplete, keepFieldsWithoutFilesEdit, saveRefusal
+} = require('../index');
 
 const LIST_TYPES = ['files', 'collaborators', 'annotations'];
 const LAYER_TYPES = ['volume'];
@@ -139,7 +141,7 @@ const rules = (broken) => {
     return false;
   });
 
-  return { checkDocument, keepInPlace };
+  return { checkDocument, keepInPlace, sanitize };
 };
 
 /* The fields of a stored version a new version starts from (2.17) */
@@ -159,7 +161,7 @@ const storedFields = (stored) => {
  * @returns {function} An async express handler
  */
 const saveHandler = (store, broken, userExists) => {
-  const { checkDocument, keepInPlace } = rules(broken);
+  const { checkDocument, keepInPlace, sanitize } = rules(broken);
   let queue = Promise.resolve();
   // one save at a time (2.20)
   const locked = (fn) => {
@@ -171,16 +173,27 @@ const saveHandler = (store, broken, userExists) => {
   // eslint-disable-next-line max-statements
   const save = async (req, res, who) => {
     const old = store.current(req.params.p);
-    if (old && !broken.noEditCheck && !ACS.canEditFiles(old, who)) {
-      return res.status(403).json({ error: 'User does not have edit rights' });
+    // edit on at least one list (2.2, 2026-11-15); `filesEditToSave`: files edit, the rule before
+    const maySave = broken.filesEditToSave ? ACS.canEditFiles : canSaveProject;
+    if (old && !broken.noEditCheck && !maySave(old, who)) {
+      return res.status(403).json(saveRefusal());
     }
     const { doc, error } = await checkDocument({ data: req.body.data, shortname: req.params.p, old, who, userExists });
     if (error) {
       return res.status(broken.invalid500 ? 500 : 400).json({ error });
     }
+    // a files list sent before every file was received: the stored one (2.21), before the rights
+    if (old && !broken.noFilesGuard && filesListIncomplete(doc, old)) {
+      doc.files.list = old.files.list;
+    }
+    delete doc.filesLoaded;
     const ignored = [];
     if (old) {
       ignored.push(...(broken.lengthsOnly ? [] : ACS.preventUnauthorizedUpdates(doc, old, who)), ...keepInPlace(doc, old, who));
+      // the project's own fields need files edit (2.2); `fieldsUnchecked`: stored whatever the rights
+      if (!broken.fieldsUnchecked) {
+        ignored.push(...keepFieldsWithoutFilesEdit(doc, old, who, { sanitize }));
+      }
     }
     const base = old || (broken.inheritDeleted ? store.last(doc.shortname) : null);
     const version = base && !broken.dropStoredFields ? { ...storedFields(base), ...doc } : doc;
@@ -189,7 +202,7 @@ const saveHandler = (store, broken, userExists) => {
       version.modifiedBy = who;
     }
     store.saveVersion(version);
-    res.json({ success: true, message: ignored.length ? `Some changes (on ${[...new Set(ignored)].join(', ')}) were ignored.` : 'Saved.' });
+    res.json({ success: true, message: `Saved.${ignoredChangesMessage(ignored)}` });
   };
 
   return async (req, res) => {

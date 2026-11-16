@@ -16,8 +16,9 @@ Small functions the apps share, exported from `require('neuroweblab')` (since 1.
 - `toId(id)`: the `ObjectId` of a 24-digit hex string in either case, else `null`.
 - `catchErrors(handler, respond)`: wraps an async Express handler; an error answers 500 `{error: 'Server error'}` (or `respond(res)`) unless headers were sent, and is logged with `req.log` or `console`.
 - `usernameFromCookie(sessionParser, cookie)`: the username of the session a WebSocket's cookie belongs to, or `null`; reads `username` and the configured `usernameField`.
+- Saving a project (since 1.9.0, `project/save.js`): `canSaveProject(oldProject, user)` (edit on at least one list), `keepFieldsWithoutFilesEdit(newProject, oldProject, user, {sanitize})` (the project's own fields need `files: edit`), `saveRefusal()` (the 403 body), `ignoredChangesMessage(ignored)` (the "Some changes (on …) were ignored" text), `filesListIncomplete(newProject, oldProject, dropped)` (a files list sent before every file was loaded).
 
-They live in `util/` (and `auth/sessionUser.js`), each with its spec next to it.
+They live in `util/` (and `auth/sessionUser.js`, `project/`), each with its spec next to it.
 
 ## Yearly Node upgrade
 

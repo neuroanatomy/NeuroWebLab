@@ -3,6 +3,7 @@ const db = require('./db/db');
 const accessControl = require('./accessControl');
 const Configuration = require('./Configuration');
 const util = require('./util');
+const project = require('./project');
 const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
@@ -80,5 +81,7 @@ module.exports = {
   ...accessControl,
   // 1.8.0: shared helpers (util/, auth/sessionUser.js)
   ...util,
-  usernameFromCookie
+  usernameFromCookie,
+  // 1.9.0: save rights for project fields, incomplete files guard (project/)
+  ...project
 };

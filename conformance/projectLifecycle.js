@@ -4,7 +4,8 @@
  * describe/it blocks, as `accessMatrix(adapter)`. The rules are the ones the
  * maintainer approved on 2026-11-11 (coordination
  * `tasks/proposed-shared-pm-tests.md`, "Slice 2: rules for the differing
- * rows"); each case is tagged with its row.
+ * rows"), with 2.2 as changed on 2026-11-15 (edit on at least one list) and
+ * 2.21 added in 1.9.0; each case is tagged with its row.
  */
 const crypto = require('crypto');
 const { parse, rowName, shortnameOf } = require('./checks');
@@ -22,7 +23,8 @@ const ROWS = {
   editor: uniform('edit'),
   adder: uniform('add'),
   adder2: uniform('add'),
-  filesEditor: access('edit', 'view', 'view')
+  filesEditor: access('edit', 'view', 'view'),
+  annotationsEditor: access('view', 'view', 'edit')
 };
 const USER_KEYS = ['owner', 'outsider', 'gone', ...Object.keys(ROWS)];
 const copy = (doc) => JSON.parse(JSON.stringify(doc));

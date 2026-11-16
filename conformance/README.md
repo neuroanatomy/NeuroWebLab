@@ -73,8 +73,8 @@ The two adapters in use are in the coordination folder,
 
 Each check belongs to a rule, named by its row in the feature map
 (coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `2.1`,
-`2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.25` (slice 2, but 2.11 and
-2.21), `3.1` … `3.8` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
+`2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.25` (slice 2, but 2.11),
+`3.1` … `3.8` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
 `5.4` (slice 5); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is
 `RULES`. A case whose failing checks are all declared is reported as pending,
@@ -93,11 +93,14 @@ the maintainer approved on 2026-11-11 (coordination
 `tasks/proposed-shared-pm-tests.md`, "Slice 2: rules for the differing
 rows"); where both apps agreed (2.2, 2.3, 2.7, 2.16, 2.19, 2.22), the shared
 rule. Every case is a POST, DELETE or read over HTTP by users the slice signs
-up (owner, a non-member, and collaborators with view, edit, add, and files
-edit only); the stored state is read back as the owner, from
+up (owner, a non-member, and collaborators with view, edit, add, files
+edit only, and annotations edit only); the stored state is read back as the owner, from
 `GET /project/json/:p`. Each refusal of an invalid document also checks the
-answer, 400 `{error}` (2.13). Not in the slice: 2.11 (the files' shape: the
-slice reads them through `fileList`), 2.21 (`filesLoaded`, BrainBox's), the
+answer, 400 `{error}` (2.13). A save needs `edit` on at least one list of
+the stored version, the project's own fields `files: edit` (2.2, since
+2026-11-15, NWL 1.9.0); a save whose `filesLoaded.count` is not the stored
+files list's length keeps the stored list (2.21, NWL 1.9.0). Not in the slice: 2.11 (the files' shape: the
+slice reads them through `fileList`), the
 lock itself (2.20: only the outcome of two saves at once).
 
 What it needs from the app, besides slice 1's fields:
@@ -255,9 +258,10 @@ A field it lacks fails the cases that need it, naming the field.
 
 `conformance/accessMatrix.spec.js` runs slice 1 on `test/conformanceApp.js`
 (NWL's auth and `AccessControlService`, BrainBox's rules), then on a variant
-that does not hide the collaborators, in a nested mocha: the suite fails there.
+that does not hide the collaborators, and one that needs `files: edit` to
+save, in a nested mocha: the suite fails there.
 `conformance/projectLifecycle.spec.js` runs slice 2 on the same app (its save
-is `test/conformanceSave.js`, the approved rules), then on 23 variants, each
+is `test/conformanceSave.js`, the approved rules), then on 26 variants, each
 turning one rule off (owner from the client, stored fields lost, invalid
 document 500, …): each makes its rule fail, and no other rule outside the
 ones it breaks. `conformance/projectListings.spec.js` does the same for
