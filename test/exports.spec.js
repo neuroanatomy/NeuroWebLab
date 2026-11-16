@@ -5,6 +5,9 @@ const util = require('../util');
 const project = require('../project');
 const projectSave = require('../project/save');
 const projectRules = require('../project/rules');
+const admin = require('../admin');
+const adminAdmins = require('../admin/admins');
+const adminActions = require('../admin/actions');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -52,6 +55,29 @@ describe('root exports', () => {
     assert.instanceOf(nwl.shortnamePattern, RegExp);
     for (const type of ['files', 'collaborators', 'annotations']) {
       assert.isFunction(nwl.isBlankRow[type], type);
+    }
+  });
+
+  it('1.11.0: each admin export is exported, as the module that holds it', () => {
+    for (const name of ['createAdmins', 'requestUsername']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], admin[name], name);
+      assert.strictEqual(nwl[name], adminAdmins[name], name);
+    }
+    for (const name of ['sendResult', 'adminLog']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], admin[name], name);
+      assert.strictEqual(nwl[name], adminActions[name], name);
+    }
+    const admins = nwl.createAdmins();
+    for (const name of ['getAdmins', 'setAdmins', 'isAdmin', 'requestUsername', 'requireAdmin', 'adminPage']) {
+      assert.isFunction(admins[name], name);
+    }
+  });
+
+  it('every 1.10.0 export is still there', () => {
+    for (const name of ['plainText', 'sanitize', 'isBlank', 'text', 'listOf', 'sortRows', 'droppedMessage', 'isBlankRow', 'shortnamePattern']) {
+      assert.exists(nwl[name], name);
     }
   });
 

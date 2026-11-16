@@ -4,6 +4,7 @@ const accessControl = require('./accessControl');
 const Configuration = require('./Configuration');
 const util = require('./util');
 const project = require('./project');
+const admin = require('./admin');
 const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
@@ -84,5 +85,7 @@ module.exports = {
   usernameFromCookie,
   // 1.9.0: save rights for project fields, incomplete files guard (project/);
   // 1.10.0: validation helpers (project/rules.js)
-  ...project
+  ...project,
+  // 1.11.0: admin access (admin/)
+  ...admin
 };

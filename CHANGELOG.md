@@ -1,5 +1,91 @@
 # Changelog
 
+## 1.11.0 — 2026-11
+
+### New
+
+- **Admin access, exported from `require('neuroweblab')`** (stage 4, merge
+  M4). The apps' code (microdraw 6bacd20 `app/controller/admin/admins.js`,
+  `admin.controller.js` and the four `log` helpers; BrainBox 362fc3e
+  `controller/admin/admins.js`, `admin.controller.js` and the inline `log`
+  inserts), in `admin/`:
+  - `createAdmins({ cfgPath, logger })`: an app's admins list, read once
+    from the `admins` field of `cfgPath` (non-empty strings kept; a missing
+    file or bad JSON gives `[]` and a warning; no `cfgPath` gives `[]`). It
+    returns `{ getAdmins, setAdmins, isAdmin, requestUsername, requireAdmin,
+    adminPage }`, all reading the same list, so `setAdmins` in an app's tests
+    changes what its `requireAdmin` and admin page see. Each call makes its
+    own list. `logger` is called as pino is
+    (`logger.warn({ err }, 'cannot read the admins list from cfg.json')`,
+    microdraw's line); without one the warning is BrainBox's
+    `console.log('WARNING: cannot read the admins list from cfg.json',
+    err.message)`.
+  - `requireAdmin(req, res, next)`: 401 `User not authenticated`, 403
+    `Admins only` (JSON), else `next()` (both apps' code).
+  - `adminPage({ title, userPayload, loginPrompt })`: the page's handler.
+    Logged out: `returnTo` set, 401 `askForLogin` with `title`,
+    `functionality: 'use the admin tools'` and the `loginPrompt` fields (an
+    object, or `(req) => fields`). Not an admin: 403 `error`. An admin:
+    `admin` with `title` and `loggedUser: jsonForScript(userPayload(req,
+    username))` (default `{ username }`).
+  - `requestUsername(req)`: `req.user.username` (session or token), else
+    `null`; also on each instance.
+  - `sendResult(res, action, { logger })`: `{status, error}` → that status
+    and `{success: false, error}`, a result → `{success: true, ...result}`,
+    a thrown error → 500 `Server error`, logged with
+    `logger.error({ err }, 'admin request failed')` (microdraw's line) or,
+    without a logger, `console.log('ERROR:', err)` (BrainBox's).
+  - `adminLog(db, key, value, { logger, fields })`: inserts
+    `{ key, value, date }` in `log` and returns the entry with its `_id` (the
+    id an undo refers to). With a `logger`, first writes
+    `logger.info({ event: key, ...fields(value) }, 'admin: <key>')`
+    (`fields` defaults to the value); without one, no line.
+- Unit specs in `admin/admins.spec.js` and `admin/actions.spec.js`;
+  `test/exports.spec.js` checks the new names. Shared suite 5.1, 5.2 and 5.4
+  unchanged.
+- Nothing is renamed or removed; every 1.10.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required: no suite case changed. The apps may replace their
+copies (M4b microdraw, M4c BrainBox). An app's `admins.js` becomes:
+
+```js
+// microdraw app/controller/admin/admins.js
+const path = require('path');
+const { createAdmins } = require('neuroweblab');
+const logger = require('../../log');
+
+module.exports = createAdmins({
+  cfgPath: process.env.CFG_PATH || path.join(__dirname, '../../../cfg.json'),
+  logger
+});
+```
+
+```js
+// BrainBox controller/admin/admins.js
+const path = require('path');
+const { createAdmins } = require('neuroweblab');
+
+module.exports = createAdmins({ cfgPath: path.resolve(__dirname, '../../cfg.json') });
+```
+
+Then, in `admin.controller.js`:
+- `requireAdmin` is the instance's (`require('./admins').requireAdmin`).
+- `adminPage` is `admins.adminPage({ ... })`. microdraw:
+  `{ title: 'MicroDraw: Admin', loginPrompt: { login: "<a href='/auth/github'>Log in with GitHub</a>" } }`
+  (`userPayload` default). BrainBox: `{ title: 'BrainBox: Admin',
+  userPayload: (req) => publicLoggedUser(req.user), loginPrompt: (req) =>
+  ({ loggedUser: jsonForScript(publicLoggedUser(req.user)) }) }`.
+- `sendResult(res, action, { logger })` (microdraw) and
+  `sendResult(res, fix)` for BrainBox's `sendFixResult`.
+- microdraw's `log` helpers: `adminLog(db, key, value, { logger, fields })`
+  with `fields: (v) => _.omit(v, ['project'])` (`admin.projects.js`,
+  `admin.damaged.js`) or `fields: ({ ids, ...rest }) => (ids ? { ...rest,
+  documents: ids.length } : rest)` (`admin.datasets.js`,
+  `admin.annotations.js`). BrainBox's inline inserts: `adminLog(nativeDb,
+  key, value)` (no line, as now; the entry now comes back with its id).
+
 ## 1.10.0 — 2026-11
 
 ### New

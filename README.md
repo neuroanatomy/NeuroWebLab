@@ -18,8 +18,9 @@ Small functions the apps share, exported from `require('neuroweblab')` (since 1.
 - `usernameFromCookie(sessionParser, cookie)`: the username of the session a WebSocket's cookie belongs to, or `null`; reads `username` and the configured `usernameField`.
 - Saving a project (since 1.9.0, `project/save.js`): `canSaveProject(oldProject, user)` (edit on at least one list), `keepFieldsWithoutFilesEdit(newProject, oldProject, user, {sanitize})` (the project's own fields need `files: edit`), `saveRefusal()` (the 403 body), `ignoredChangesMessage(ignored)` (the "Some changes (on …) were ignored" text), `filesListIncomplete(newProject, oldProject, dropped)` (a files list sent before every file was loaded).
 - Validating a project (since 1.10.0, `project/rules.js`): `plainText(str)` (markup removed by DOMPurify over jsdom, text kept), `sanitize(value)` (every string of a JSON value, as `plainText`), `isBlank(v)`, `text(v)`, `listOf(project, type)`, `isBlankRow` (blank rows by list), `sortRows(type, rows, oldRows, {rowKey, isBlankRow})` (stored, new and blank rows; `rowKey` is the app's), `shortnamePattern` (a new shortname: letters, numbers, hyphens), `droppedMessage(dropped)` (the "Empty rows were not saved" text).
+- Admin access (since 1.11.0, `admin/`): `createAdmins({cfgPath, logger})` (an app's admins list from its cfg.json, with `getAdmins`, `setAdmins`, `isAdmin`, `requestUsername`, `requireAdmin` (401/403 JSON) and `adminPage({title, userPayload, loginPrompt})` bound to it), `requestUsername(req)`, `sendResult(res, action, {logger})` (an admin action's answer, 500 logged), `adminLog(db, key, value, {logger, fields})` (an entry in `log`, returned with its `_id`; a log line only with a `logger`).
 
-They live in `util/` (and `auth/sessionUser.js`, `project/`), each with its spec next to it.
+They live in `util/` (and `auth/sessionUser.js`, `project/`, `admin/`), each with its spec next to it.
 
 ## Yearly Node upgrade
 
