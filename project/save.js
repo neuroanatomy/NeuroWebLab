@@ -8,12 +8,12 @@ const _ = require('lodash');
 const AccessType = require('../accessControl/AccessType');
 const AccessLevel = require('../accessControl/AccessLevel');
 const AccessControlService = require('../accessControl/AccessControlService');
+const { listOf } = require('./rules');
 
 const LIST_TYPES = [AccessType.FILES, AccessType.ANNOTATIONS, AccessType.COLLABORATORS];
 
 const SAVE_REFUSAL = 'You may not change this project: saving it needs edit rights on its files, annotations or collaborators';
 
-const listOf = (project, type) => ((project && _.isPlainObject(project[type]) && Array.isArray(project[type].list)) ? project[type].list : []);
 
 /**
  * Whether a user may save an existing project (2026-11-15): `edit` on at

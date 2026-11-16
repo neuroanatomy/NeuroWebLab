@@ -4,6 +4,7 @@ const nwl = require('../index');
 const util = require('../util');
 const project = require('../project');
 const projectSave = require('../project/save');
+const projectRules = require('../project/rules');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -34,6 +35,29 @@ describe('root exports', () => {
       assert.isFunction(nwl[name], name);
       assert.strictEqual(nwl[name], project[name], name);
       assert.strictEqual(nwl[name], projectSave[name], name);
+    }
+  });
+
+  it('1.10.0: each validation helper is exported, as the module that holds it', () => {
+    for (const name of ['plainText', 'sanitize', 'isBlank', 'text', 'listOf', 'sortRows', 'droppedMessage']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectRules[name], name);
+    }
+    for (const name of ['isBlankRow', 'shortnamePattern']) {
+      assert.exists(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectRules[name], name);
+    }
+    assert.instanceOf(nwl.shortnamePattern, RegExp);
+    for (const type of ['files', 'collaborators', 'annotations']) {
+      assert.isFunction(nwl.isBlankRow[type], type);
+    }
+  });
+
+  it('every 1.9.0 export is still there', () => {
+    for (const name of ['canSaveProject', 'keepFieldsWithoutFilesEdit', 'saveRefusal', 'ignoredChangesMessage', 'filesListIncomplete']) {
+      assert.isFunction(nwl[name], name);
     }
   });
 

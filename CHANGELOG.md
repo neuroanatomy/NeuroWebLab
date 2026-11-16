@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.10.0 — 2026-11
+
+### New
+
+- **Validation helpers for project documents, exported from
+  `require('neuroweblab')`** (stage 4, merge M3). The apps' code (microdraw
+  7d93f81 `project.validation.js` and `project.controller.js`, BrainBox
+  1f767da `project.controller.js` and `project-rows.js`), in
+  `project/rules.js`:
+  - `plainText(str)`: markup removed by DOMPurify, text kept; a string
+    without `<` is kept as it is (both apps). The DOMPurify instance, over a
+    jsdom window that loads nothing and runs no script, is created once per
+    process, on the first string that needs it.
+  - `sanitize(value)`: a copy of a JSON value with every string through
+    `plainText`; arrays and plain objects are copied, other values returned
+    as they are (microdraw's `sanitize`, BrainBox's `sanitizeValue`: the
+    same code).
+  - `isBlank(v)`, `text(v)`, `listOf(project, type)`: both apps' code.
+    `project/save.js` now uses this `listOf` (the same code it had).
+  - `isBlankRow`: blank rows by list. A collaborator row is blank if it has
+    no `username`, `userID` or `nickname` (BrainBox's; microdraw's did not
+    read `nickname`).
+  - `sortRows(type, rows, oldRows, {rowKey, isBlankRow})`: the stored, new
+    and blank rows of one list (shared suite 2.14). What a row is compared
+    on differs between the apps, so `rowKey` (by list) is the app's and is
+    required; `isBlankRow` defaults to the one above. The stored rows are
+    compared as given: the caller sanitises them as the rows sent
+    (BrainBox's form; microdraw's sanitised each stored row itself).
+  - `shortnamePattern`: `/^[a-zA-Z0-9-]+$/`, a new project's shortname
+    (both apps).
+  - `droppedMessage(dropped)`: `' Empty rows were not saved (1 files, 2
+    annotations).'`, with its leading space, or `''`; `dropped` may be
+    missing (BrainBox's). `ignoredChangesMessage` is unchanged.
+- Unit specs in `project/rules.spec.js` (the apps' `plainText` and
+  shortname cases, and new ones); `test/exports.spec.js` checks the new
+  names.
+- Nothing is renamed or removed; every 1.9.0 export is unchanged.
+
+### Dependencies
+
+- `dompurify` `^3.4.16` and `jsdom` `^16.5.0`, the apps' ranges, so that
+  each app keeps one copy of each. jsdom 16 runs on Node 26 with no
+  deprecation warning.
+
+### What the apps must do
+
+Nothing is required: no suite case changed. The apps may replace their
+copies with the helpers (M3b microdraw, M3c BrainBox):
+- microdraw: `plainText`, `sanitize`, `isBlank`, `text`, `listOf`,
+  `shortnamePattern` and `droppedMessage`; `sortRows` called with its own
+  `rowKey`, `listOf(oldProject, type).map(sanitize)` as `oldRows`, and, to
+  keep a collaborator row named by `nickname` alone blank (dropped) rather
+  than refused, an `isBlankRow` whose `collaborators` reads `username` and
+  `userID` only.
+- BrainBox: `plainText`; `sanitizeValue` becomes `sanitize`; `isBlank`,
+  `text`, `listOf`, `isBlankRow`, `shortnamePattern`, `droppedMessage`;
+  `sortRows` called with its `rowKey` (which stays in `project-rows.js`
+  with `collaboratorUser` and `fileSource` until M7 / D2).
+- Each app may then drop its own `dompurify` and `jsdom` dependencies only
+  if nothing else in it uses them.
+
 ## 1.9.0 — 2026-11
 
 ### New
