@@ -93,6 +93,8 @@ const defaultRoutes = {
   settings: '/project/:p/settings',
   json: '/project/json/:p',
   files: '/project/json/:p/files?start=0&length=:n',
+  // slice 3 (3.11-3.14): the files route, without its query (the suite's)
+  filesPaged: '/project/json/:p/files',
   save: '/project/json/:p',
   remove: '/project/json/:p',
   list: '/project/json?page=:page',

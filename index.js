@@ -9,6 +9,8 @@ const embed = require('./embed');
 const { projectEmbedRoute, firstSource } = require('./routes/projectEmbed');
 const { wantsJSON, wantsPage, displayPath, notFound, errorHandler } = require('./routes/notFound');
 const { listLabelSets, labelSetsRoute } = require('./routes/labelSets');
+const { projectFilesRoute } = require('./routes/projectFiles');
+const { projectListRoute, PROJECTS_PER_PAGE } = require('./routes/projectList');
 const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
@@ -107,5 +109,10 @@ module.exports = {
   errorHandler,
   // 1.15.0: the label set listing (routes/labelSets.js)
   listLabelSets,
-  labelSetsRoute
+  labelSetsRoute,
+  // 1.17.0: the paged files route and the project listing
+  // (routes/projectFiles.js, routes/projectList.js)
+  projectFilesRoute,
+  projectListRoute,
+  PROJECTS_PER_PAGE
 };

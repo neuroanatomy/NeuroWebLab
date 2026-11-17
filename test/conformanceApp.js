@@ -13,10 +13,10 @@ const { AccessControlService: ACS, AccessLevel, AccessType, authTokenMiddleware 
 const { clone, saveHandler } = require('./conformanceSave');
 const { escapeRegex } = require('../db/escapeRegex');
 const { annotationWriteHandler, mayAnnotate } = require('./conformanceAnnotations');
+const { filesSlice, listHandler } = require('./conformancePaging');
 
 const isAnyone = (c) => c.userID === 'anyone' || c.username === 'anyone';
 const { VIEW } = AccessLevel;
-const PER_PAGE = 20;
 const MAX_FOUND = 10;
 
 /**
@@ -198,14 +198,7 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
   const find = (req) => store.current(req.params.p);
 
   app.get('/project/new', (req, res) => res.send(req.user ? 'new project' : 'Logging in is required to create a new project.'));
-  // filtered, then paged (3.2); `pageBeforeFilter`: paged, then filtered
-  app.get('/project/json', authTokenMiddleware, (req, res) => {
-    const n = Number(req.query.page);
-    const onPage = (list) => list.slice(n * PER_PAGE, (n + 1) * PER_PAGE);
-    const visible = (list) => list.filter((p) => ACS.canViewFiles(p, who(req)));
-    const listed = broken.pageBeforeFilter ? visible(onPage(store.listed())) : onPage(visible(store.listed()));
-    res.json(listed.map((p) => ({ project: p.shortname, projectName: p.name, owner: p.owner })));
-  });
+  app.get('/project/json', authTokenMiddleware, listHandler(store, broken, who));
   app.get('/project/json/:p', authTokenMiddleware, (req, res) => {
     const p = find(req);
     if (!p) {
@@ -217,6 +210,10 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
     res.json(projectForUser(p, who(req), broken));
   });
   app.get('/project/json/:p/files', authTokenMiddleware, (req, res) => {
+    const missing = ['start', 'length'].find((key) => typeof req.query[key] === 'undefined');
+    if (missing && !broken.filesRangeOptional) {
+      return res.json({ error: `Provide '${missing}'` });
+    }
     const p = find(req);
     if (!p) {
       return res.status(404).json({ error: 'no project' });
@@ -224,7 +221,7 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
     if (!ACS.canViewFiles(p, who(req))) {
       return res.status(noViewStatus(req, broken)).json({ error: 'Not authorized to view the project' });
     }
-    res.json(p.files.list.slice(Number(req.query.start), Number(req.query.start) + Number(req.query.length)));
+    res.json(filesSlice(p.files.list, req.query, broken));
   });
   app.post('/project/json/:p', authTokenMiddleware, saveHandler(store, broken, userExists));
   app.delete('/project/json/:p', authTokenMiddleware, (req, res) => {

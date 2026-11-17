@@ -4,7 +4,8 @@
  * slices. The rules are the ones the maintainer approved on 2026-11-11
  * (coordination `tasks/proposed-shared-pm-tests.md`, "Slice 3: rules for the
  * differing rows"); each case is tagged with its row. Not in the slice: 3.9
- * and 3.10 (app-specific).
+ * and 3.10 (app-specific). 3.11-3.15 (NeuroWebLab 1.17.0): paging the files
+ * route, and the listing's `page` parameter.
  */
 const crypto = require('crypto');
 const { parse } = require('./checks');
@@ -14,6 +15,7 @@ const { LISTING_RULES, caseRunner, checkDeclared } = require('./runner');
 const pageCases = require('./listingsPages');
 const userProjectCases = require('./listingsUserProjects');
 const searchCases = require('./listingsSearch');
+const pagingCases = require('./listingsPaging');
 
 /* 11 users: more than a search may answer (3.7: at most 10) */
 const USER_KEYS = ['owner', 'member', 'outsider', 'pager', 'pad0', 'pad1', 'pad2', 'pad3', 'pad4', 'pad5', 'pad6'];
@@ -54,6 +56,8 @@ const projectPlan = () => {
   for (let i = 0; i < 12; i += 1) {
     add(`srch${i}`);
   }
+  // paging the files, and the ?page parameter (3.11-3.15): a public project of 5 files
+  add('paged', { files: 5 });
 
   return plan;
 };
@@ -182,6 +186,7 @@ const projectListings = (appAdapter, { mocha = global, prefix = `cl${crypto.rand
     pageCases(t);
     userProjectCases(t);
     searchCases(t);
+    pagingCases(t);
 
     describe('expected differences', function () {
       stillDiffers(it);

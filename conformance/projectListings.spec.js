@@ -23,7 +23,13 @@ const VARIANTS = [
   ['usernameOnly', ['3.7']],
   ['emailInUserSearch', ['3.7']],
   ['regexSearch', ['3.8']],
-  ['nonStringAccepted', ['3.8']]
+  ['nonStringAccepted', ['3.8']],
+  ['filesOneBased', ['3.11']],
+  ['noClamp', ['3.12']],
+  ['namesAsStrings', ['3.13']],
+  ['filesRangeOptional', ['3.14']],
+  ['pageNaN', ['3.15']],
+  ['noPageError', ['3.15']]
 ];
 
 describe('conformance: slice 3 on an app that follows the approved rules', function () {

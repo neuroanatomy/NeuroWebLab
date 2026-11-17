@@ -1,5 +1,93 @@
 # Changelog
 
+## 1.17.0 — 2026-11
+
+### New
+
+- **The paged files route and the project listing, exported from
+  `require('neuroweblab')`** (stage 4, merge M10), in `routes/projectFiles.js`
+  and `routes/projectList.js`. microdraw's code is the reference; what is
+  answered for a file or a project is the app's (an adapter, as
+  `projectEmbedRoute`'s). Both read the configured `projectsCollection`
+  (`Configuration`), current versions only (`CURRENT`). A missing or
+  non-function adapter field throws at creation, naming it. An error (a
+  failed read, a rejected `entries` or `row`) is passed to `next`, so the
+  app's `errorHandler` (1.13.0) answers it; `catchErrors` stays as a last
+  guard.
+  - `projectFilesRoute({db, canView, noViewStatus, entries})`:
+    `GET /project/json/:projectName/files?start&length[&names=true]`. In this
+    order: a missing `start` or `length` is 200 `{error: "Provide 'start'"}`
+    (or `'length'`), before any read; an unknown project 404 `{error: 'No
+    project <name>'}` (`findCurrentProject`); no view right
+    (`canView(req, project)` false) `noViewStatus(req)` with `{error: 'Not
+    authorized to view project'}`; else the slice of `files.list` (`[]` if
+    not an array): `start` and `length` by `parseInt`, a non-number or a
+    negative value counting as 0, cut to the list (past its end, `[]`). The
+    answer is `await entries(req, project, slice, {names})`, `slice` being
+    the raw items, `names` true for `names=true`. `db(req)` is the native
+    `Db`.
+  - `projectListRoute({db, canView, row, projection})`: `GET
+    /project/json?page`. No `page`: 200 `{error: "Provide the parameter
+    'page'"}`, BrainBox's text, for both apps. The page is
+    `Math.max(0, parseInt(page) || 0)`. Every current project is read with
+    `projection`, filtered by `canView(req, project)` (a promise is awaited),
+    then `PROJECTS_PER_PAGE` (20) per page, each answered as
+    `await row(req, project)`. `projection` defaults to BrainBox's, `{_id: 0,
+    shortname: 1, name: 1, owner: 1, collaborators: 1, 'files.list': 1}`; a
+    given one must hold what `canView` and `row` read.
+  - `PROJECTS_PER_PAGE`: 20.
+- **Conformance, slice 3: 5 new rules**, `3.11` … `3.15`, in
+  `conformance/listingsPaging.js` (8 cases), on a public project of 5 files
+  the slice now stores (`paged`; 69 projects, 26 public):
+  - 3.11 `/files?start=1&length=2` gives the 2nd and 3rd files, in list
+    order; a `start` past the end gives `[]`;
+  - 3.12 a negative or non-numeric `start` or `length` counts as 0;
+  - 3.13 `names=true` gives `{source, name}` rows only, `name` a string;
+  - 3.14 `/files` without `start` or without `length`: 200 with an `error`
+    key;
+  - 3.15 the listing: a non-numeric or negative `page` is page 0; no `page`
+    is 200 with an `error` key.
+  The files route is the new route template `filesPaged` (default
+  `/project/json/:p/files`). The reference app (`test/conformanceApp.js`)
+  follows them; `conformance/projectListings.spec.js` has 6 new variants,
+  each failing its rule only. What the existing cases check is unchanged.
+- Unit specs in `routes/projectFiles.spec.js` and `routes/projectList.spec.js`,
+  on the test MongoDB; `test/exports.spec.js` checks the new names.
+- Nothing is renamed or removed; every 1.16.0 export is unchanged.
+
+### What the apps must do
+
+An app moving to 1.17.0 gets the new suite cases (3.11-3.15): it must pass
+them, or declare the rules it fails in `expectedDifferences` with a ledger
+reference (ledger rows "Paged project files route" and "Project listing").
+Switching to the routes is the next step of each app (M10b, M10c):
+
+**microdraw** (M10b):
+
+```js
+const adapter = { db: (req) => req.appConfig.db.nativeMongoDB(), canView: (req, p) => AccessControlService.canViewFiles(p, getLoggedUser(req)),
+  noViewStatus: (req) => noViewStatus(getLoggedUser(req)) };
+router.get('/json/:projectName/files', projectFilesRoute({ ...adapter, entries: (req, p, slice, { names }) => slice.map((f) => fileEntry(f, names)) }));
+router.get('/json', projectListRoute({ ...adapter, row: (req, p) => p.shortname, projection: { _id: 0, shortname: 1, owner: 1, collaborators: 1 } }));
+```
+
+Changes for it: no `page` answers `Provide the parameter 'page'` (was `The
+'pages' parameter has to be specified`; no client or test reads it), and a
+failure goes to its `errorHandler` instead of its own 500 `{error: 'Server
+error'}`.
+
+**BrainBox** (M10c): `db: (req) => req.nativeDb`, `canView` its
+`hasFilesAccess(VIEW, project, loggedUser)`, `noViewStatus` its own;
+`entries` the `mri` lookup of `getProjectFilesSlice` (one `$in` on the
+slice's sources, `{source, name: ''}` for a file without an `mri` document,
+`{source, name}` with `names`); `row` its `getProjectsSlice` row `{project,
+projectName, numFiles, numCollaborators, owner}`; the default `projection`.
+Changes for it: a negative or non-numeric `start`/`length` is clamped to 0
+(a negative `start` sliced from the end), a non-numeric `page` is page 0
+(was `NaN`), the no-view message is `Not authorized to view project` (no
+username in it), a failure goes to its `errorHandler`, and there is no
+`console.log` per request.
+
 ## 1.16.0 — 2026-11
 
 ### New

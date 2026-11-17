@@ -15,6 +15,8 @@ const embedTickets = require('../embed/tickets');
 const routesProjectEmbed = require('../routes/projectEmbed');
 const routesNotFound = require('../routes/notFound');
 const routesLabelSets = require('../routes/labelSets');
+const routesProjectFiles = require('../routes/projectFiles');
+const routesProjectList = require('../routes/projectList');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -204,6 +206,27 @@ describe('root exports, 1.16.0', () => {
   it('every 1.15.0 export is still there', () => {
     for (const name of ['listLabelSets', 'labelSetsRoute']) {
       assert.isFunction(nwl[name], name);
+    }
+  });
+});
+
+// 1.17.0
+describe('root exports, 1.17.0', () => {
+  it('1.17.0: projectFilesRoute, projectListRoute and PROJECTS_PER_PAGE are exported, as the module that holds them', () => {
+    assert.isFunction(nwl.projectFilesRoute);
+    assert.strictEqual(nwl.projectFilesRoute, routesProjectFiles.projectFilesRoute);
+    assert.isFunction(nwl.projectListRoute);
+    assert.strictEqual(nwl.projectListRoute, routesProjectList.projectListRoute);
+    assert.strictEqual(nwl.PROJECTS_PER_PAGE, 20);
+    assert.strictEqual(nwl.PROJECTS_PER_PAGE, routesProjectList.PROJECTS_PER_PAGE);
+  });
+
+  it('every 1.16.0 export is still there', () => {
+    for (const name of ['findCurrentProject', 'saveProjectVersion']) {
+      assert.isFunction(nwl[name], name);
+    }
+    for (const name of ['CURRENT', 'NEWEST_FIRST']) {
+      assert.exists(nwl[name], name);
     }
   });
 });
