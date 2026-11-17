@@ -13,6 +13,7 @@ const embed = require('../embed');
 const embedTickets = require('../embed/tickets');
 const routesProjectEmbed = require('../routes/projectEmbed');
 const routesNotFound = require('../routes/notFound');
+const routesLabelSets = require('../routes/labelSets');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -163,6 +164,25 @@ describe('root exports, 1.14.0', () => {
   it('every 1.13.0 export is still there', () => {
     for (const name of ['wantsJSON', 'wantsPage', 'displayPath', 'notFound', 'errorHandler']) {
       assert.isFunction(nwl[name], name);
+    }
+  });
+});
+
+// 1.15.0
+describe('root exports, 1.15.0', () => {
+  it('1.15.0: listLabelSets and labelSetsRoute are exported, as the module that holds them', () => {
+    for (const name of ['listLabelSets', 'labelSetsRoute']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], routesLabelSets[name], name);
+    }
+  });
+
+  it('every 1.14.0 export is still there', () => {
+    for (const name of ['visibleProject', 'isAnyoneRow', 'collaboratorKey']) {
+      assert.isFunction(nwl[name], name);
+    }
+    for (const name of ['isLoggedOut', 'getEffectiveAccessLevel']) {
+      assert.isFunction(nwl.AccessControlService[name], name);
     }
   });
 });

@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.15.0 — 2026-11
+
+### New
+
+- **The label set listing, exported from `require('neuroweblab')`** (stage 4,
+  merge M8), in `routes/labelSets.js`. microdraw's
+  `app/controller/api/labelsets.js` is the reference, with its default first
+  (`10regions.json`) made an option.
+  - `listLabelSets(dir, {first, logger})`: the `*.json` regular files of
+    `dir`, read in parallel, as `[{name, source}]` (`source` is the file
+    name). Sorted by file name (by code point, not `localeCompare`), with
+    `first` (a file name, optional; ignored if absent) before the others. A
+    file that isn't valid JSON, or has no string `name`, is skipped and logged
+    with `logger.warn({err, file}, 'label set skipped: not a valid label set
+    file')`; `logger` is `console` by default. A missing folder rejects. The
+    folder is read on each call, and no path comes from the request.
+  - `labelSetsRoute(dir, {first, logger})`: the Express handler of
+    `GET /api/getLabelsets`, `res.json(await listLabelSets(dir, options))`,
+    wrapped in `catchErrors` (an error answers 500 `{error: 'Server error'}`).
+    It throws at creation if `dir` isn't a non-empty string.
+- Unit specs in `routes/labelSets.spec.js` (microdraw's `listLabelSets` case
+  from `test/api/label-sets.spec.js`, ported); `test/exports.spec.js` checks
+  the new names.
+- Nothing is renamed or removed; every 1.14.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required. When each app switches:
+
+**microdraw** (M8b), in `app/controller/api/index.js`:
+
+```js
+router.get('/getLabelsets', labelSetsRoute(LABELS_DIR, { first: '10regions.json', logger: log }));
+```
+
+No change for it.
+
+**BrainBox** (M8c):
+
+```js
+labelSetsRoute(path.join(__dirname, '../../public/labels'))
+```
+
+For BrainBox: name order instead of readdir order, an invalid file skipped
+instead of answering 500, and only `*.json` files listed.
+
 ## 1.14.0 — 2026-11
 
 ### New
