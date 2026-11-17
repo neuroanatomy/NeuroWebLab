@@ -1,5 +1,71 @@
 # Changelog
 
+## 1.16.0 — 2026-11
+
+### New
+
+- **Project versions, exported from `require('neuroweblab')`** (stage 4,
+  merge M9), in `project/versions.js`. microdraw's
+  `app/controller/project/currentProject.js` is the reference; its dataset
+  step becomes an `afterSave` hook, and the collection is the configured
+  `projectsCollection` (`Configuration`), read on each call (microdraw's is
+  `projects`, BrainBox's `project`). The queries need the `{shortname: 1}`
+  index, which each app creates.
+  - `CURRENT`: `{backup: {$exists: false}}`, the query of the current
+    version(s). `NEWEST_FIRST`: `{sort: {_id: -1}}`.
+  - `findCurrentProject(db, shortname, {projection})`: the current version
+    of a project; of several, the newest `_id`. `null` if there is none, or
+    if `shortname` isn't a string (no query). `projection` is optional
+    (the whole document without it).
+  - `saveProjectVersion(db, doc, {by, keepModified, afterSave})`: inserts a
+    copy of `doc` without `_id` and `backup`, with `modified` (an ISO string)
+    and `modifiedBy: by` unless `keepModified`, **then** marks the other
+    current documents of its shortname `backup: true`; returns the stored
+    copy with its new `_id`. `doc` is not changed. Insert first: a failure
+    between the two writes leaves two current versions (reads take the
+    newest), never none. The caller holds the project's lock.
+  - `afterSave` (optional): `await afterSave({db, previous, version})` after
+    both writes, `previous` being the current version before the save (the
+    whole document; `null` for a new project). Its rejection reaches the
+    caller, the version being saved already. Without it, the previous
+    version isn't read.
+- Unit specs in `project/versions.spec.js`, on the test MongoDB (microdraw's
+  cases ported: the newest of two current versions, only backups, a
+  non-string shortname, and the failure after the insert);
+  `test/exports.spec.js` checks the new names.
+- Nothing is renamed or removed; every 1.15.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required. When each app switches:
+
+**microdraw** (M9b): `currentProject.js` keeps its exports and calls NWL.
+`saveProjectVersion(db, doc, {by, keepModified, datasetOwner})` becomes:
+
+```js
+nwlSaveProjectVersion(db, doc, {
+  by,
+  keepModified,
+  afterSave: ({ db, previous, version }) => recordDatasets(db, previous, version, datasetOwner || by || version.owner)
+});
+```
+
+No change for it (the previous version is now read whole, where microdraw
+read only `files.list`).
+
+**BrainBox** (M9c): reads become
+`findCurrentProject(nativeDb, shortname, {projection: {_id: 0}})`, and the
+three writes (`postProject`, a new project, `replaceCurrentVersion`) become
+`saveProjectVersion(nativeDb, version, {by})`. Behaviour changes for
+BrainBox:
+- the write order: insert, then mark the others backup (a failure between
+  the two leaves two current versions instead of none);
+- of two current versions, reads take the newest `_id` instead of an
+  arbitrary one;
+- `modified` and `modifiedBy` are set by the helper (unless
+  `keepModified`) instead of by BrainBox before each write (the same values:
+  an ISO string and the user).
+
 ## 1.15.0 — 2026-11
 
 ### New

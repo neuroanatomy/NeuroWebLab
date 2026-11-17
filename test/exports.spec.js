@@ -6,6 +6,7 @@ const project = require('../project');
 const projectSave = require('../project/save');
 const projectRules = require('../project/rules');
 const projectVisible = require('../project/visible');
+const projectVersions = require('../project/versions');
 const admin = require('../admin');
 const adminAdmins = require('../admin/admins');
 const adminActions = require('../admin/actions');
@@ -183,6 +184,26 @@ describe('root exports, 1.15.0', () => {
     }
     for (const name of ['isLoggedOut', 'getEffectiveAccessLevel']) {
       assert.isFunction(nwl.AccessControlService[name], name);
+    }
+  });
+});
+
+// 1.16.0
+describe('root exports, 1.16.0', () => {
+  it('1.16.0: CURRENT, NEWEST_FIRST, findCurrentProject and saveProjectVersion are exported, as the module that holds them', () => {
+    for (const name of ['findCurrentProject', 'saveProjectVersion']) {
+      assert.isFunction(nwl[name], name);
+    }
+    for (const name of ['CURRENT', 'NEWEST_FIRST', 'findCurrentProject', 'saveProjectVersion']) {
+      assert.exists(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectVersions[name], name);
+    }
+  });
+
+  it('every 1.15.0 export is still there', () => {
+    for (const name of ['listLabelSets', 'labelSetsRoute']) {
+      assert.isFunction(nwl[name], name);
     }
   });
 });

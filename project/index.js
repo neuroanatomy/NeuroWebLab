@@ -1,7 +1,7 @@
 /**
  * Rules for saving project documents (NeuroWebLab 1.9.0), validation helpers
- * (1.10.0) and what a visitor may see of a project (1.14.0). Each name is
- * also exported from the root `index.js`.
+ * (1.10.0), what a visitor may see of a project (1.14.0) and project
+ * versions (1.16.0). Each name is also exported from the root `index.js`.
  */
 const {
   canSaveProject,
@@ -22,6 +22,7 @@ const {
   droppedMessage
 } = require('./rules');
 const { visibleProject, isAnyoneRow, collaboratorKey } = require('./visible');
+const { CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion } = require('./versions');
 
 module.exports = {
   canSaveProject,
@@ -42,5 +43,10 @@ module.exports = {
   // 1.14.0: what a visitor may see of a project (visible.js)
   visibleProject,
   isAnyoneRow,
-  collaboratorKey
+  collaboratorKey,
+  // 1.16.0: project versions (versions.js)
+  CURRENT,
+  NEWEST_FIRST,
+  findCurrentProject,
+  saveProjectVersion
 };
