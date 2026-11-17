@@ -87,7 +87,8 @@ module.exports = {
   ...util,
   usernameFromCookie,
   // 1.9.0: save rights for project fields, incomplete files guard (project/);
-  // 1.10.0: validation helpers (project/rules.js)
+  // 1.10.0: validation helpers (project/rules.js);
+  // 1.14.0: visibleProject, isAnyoneRow, collaboratorKey (project/visible.js)
   ...project,
   // 1.11.0: admin access (admin/)
   ...admin,

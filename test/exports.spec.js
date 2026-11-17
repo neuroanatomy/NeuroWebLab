@@ -5,6 +5,7 @@ const util = require('../util');
 const project = require('../project');
 const projectSave = require('../project/save');
 const projectRules = require('../project/rules');
+const projectVisible = require('../project/visible');
 const admin = require('../admin');
 const adminAdmins = require('../admin/admins');
 const adminActions = require('../admin/actions');
@@ -143,5 +144,25 @@ describe('root exports', () => {
   it('deep paths still work (no "exports" field)', () => {
     assert.notProperty(packageJSON, 'exports');
     assert.isFunction(conformance.projectLifecycle);
+  });
+});
+
+// 1.14.0 (in its own block: the one above is at its statements limit)
+describe('root exports, 1.14.0', () => {
+  it('1.14.0: visibleProject, isAnyoneRow and collaboratorKey are exported, as the module that holds them', () => {
+    for (const name of ['visibleProject', 'isAnyoneRow', 'collaboratorKey']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectVisible[name], name);
+    }
+    for (const name of ['isLoggedOut', 'getEffectiveAccessLevel', 'getUserOrPublicAccessLevel']) {
+      assert.isFunction(nwl.AccessControlService[name], name);
+    }
+  });
+
+  it('every 1.13.0 export is still there', () => {
+    for (const name of ['wantsJSON', 'wantsPage', 'displayPath', 'notFound', 'errorHandler']) {
+      assert.isFunction(nwl[name], name);
+    }
   });
 });

@@ -54,6 +54,53 @@ module.exports = class AccessControlService {
   }
 
   /**
+   * Whether a user is a logged-out visitor: no server-verified user. A
+   * non-string, '', 'anonymous' (BrainBox's sentinel) or 'anyone'
+   * (microdraw's sentinel); BrainBox's rule plus 'anyone' (1.14.0).
+   * BrainBox's subclass defines its own `isLoggedOut` (without 'anyone'),
+   * which hides this one for the subclass and its callers.
+   * @param {*} user The username, or a logged-out sentinel
+   * @returns {boolean} True for a logged-out visitor
+   */
+  static isLoggedOut(user) {
+    return typeof user !== 'string' || user === '' || user === 'anonymous' || user === 'anyone';
+  }
+
+  /**
+   * The access level a user has to a project (1.14.0, BrainBox's
+   * `getUserOrPublicAccessLevel` override): the higher of the user's own level
+   * (`getUserOrPublicAccessLevel`) and the `anyone` row's level, as `anyone` is
+   * the minimum a named collaborator has (shared suite 4.2, decided
+   * 2026-11-11); with no `anyone` row, the own level alone. For annotations, a
+   * logged-out visitor (`isLoggedOut`) gets at most 'view': `anyone` with
+   * annotations 'edit' (or more) means any logged-in user (shared suite 4.4,
+   * 2026-11-11). The statics used are this class's, whatever subclass calls it.
+   * @param {Object} project The project
+   * @param {string|null} user The username, or a logged-out sentinel
+   * @param {"collaborators" | "annotations" | "files"} accessType The access type
+   * @throws {Error} As `getUserOrPublicAccessLevel`, when the project has
+   * neither the user's row nor an `anyone` row for that type
+   * @returns {AccessLevel} The access level
+   */
+  static getEffectiveAccessLevel(project, user, accessType) {
+    let level = AccessControlService.getUserOrPublicAccessLevel(project, user, accessType);
+    try {
+      const publicLevel = AccessControlService.getUserOrPublicAccessLevel(project, 'anyone', accessType);
+      if (publicLevel.isGreaterThan(level)) {
+        level = publicLevel;
+      }
+    } catch (err) {
+      // no 'anyone' row: the own level alone
+    }
+    if (accessType === AccessType.ANNOTATIONS && AccessControlService.isLoggedOut(user) &&
+      level.isGreaterThan(AccessLevel.VIEW)) {
+      return AccessLevel.VIEW;
+    }
+
+    return level;
+  }
+
+  /**
    * Check if user can update a project given his rights and modify newProject accordingly.
    * @param {Object} newProject The project to check
    * @param {Object} oldProject The original project to check against

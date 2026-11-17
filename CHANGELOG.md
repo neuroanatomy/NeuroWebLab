@@ -1,5 +1,71 @@
 # Changelog
 
+## 1.14.0 — 2026-11
+
+### New
+
+- **What a visitor may see of a project, exported from
+  `require('neuroweblab')`** (stage 4, merge M7), in `project/visible.js`.
+  microdraw's `visibleProjectParts` (app/controller/project/visibleProject.js)
+  and BrainBox's `projectForUser` (controller/project/project.controller.js)
+  are the reference; it is the union of their rules.
+  - `visibleProject(project, user)`: a new object; `project` is never changed
+    (the lists are new arrays in new list objects, other fields are copied
+    shallowly). A missing or malformed `collaborators`, `files` or
+    `annotations` list object becomes `{...the object, list: []}`. Both
+    permissions are decided on the unchanged project. Collaborators the
+    visitor can't view: only the `anyone` row is kept and `modifiedBy` is
+    deleted. Annotations or files the visitor can't view: the list is emptied.
+    `user` is a username or a logged-out sentinel (`'anyone'`, `'anonymous'`,
+    `null`).
+  - `isAnyoneRow(row)`: a plain object whose `username` or `userID` is
+    `'anyone'`.
+  - `collaboratorKey(row)`: for a plain object, the first non-empty string
+    among `userID`, `nickname`, `username` (BrainBox's order); else
+    `undefined`. BrainBox's `collaboratorUser` returns a non-object row as it
+    is and takes any truthy value; microdraw's `collaboratorName` reads
+    `username` first and never `nickname`.
+- **Two statics on `AccessControlService`:**
+  - `isLoggedOut(user)`: true for a non-string, `''`, `'anonymous'` or
+    `'anyone'` (BrainBox's rule plus microdraw's sentinel). BrainBox's
+    subclass defines its own `isLoggedOut` (without `'anyone'`), which still
+    hides this one for the subclass.
+  - `getEffectiveAccessLevel(project, user, accessType)`: BrainBox's
+    `getUserOrPublicAccessLevel` override. The higher of the user's own level
+    and the `anyone` row's (shared suite 4.2); for annotations, a logged-out
+    visitor gets at most `view` (shared suite 4.4). It throws as
+    `getUserOrPublicAccessLevel` does when the project has neither row.
+- `getUserOrPublicAccessLevel` is unchanged.
+- Unit specs in `project/visible.spec.js` and
+  `accessControl/effectiveAccessLevel.spec.js` (BrainBox's
+  `anyone-floor.spec.js` and `logged-out-annotations.spec.js` level cases,
+  ported); `test/exports.spec.js` checks the new names.
+- Nothing is renamed or removed; every 1.13.0 export is unchanged.
+
+### What the apps must do
+
+Nothing is required. When each app switches, it will see:
+
+**microdraw** (M7b):
+
+- `visibleProject` returns a copy instead of changing the project in place:
+  callers must use the return value.
+- In `embed/embed-access.js` `annotationsAccess`, with
+  `getEffectiveAccessLevel`: a logged-out visitor on a project whose `anyone`
+  row gives annotations `edit` now reads `view`, and a collaborator whose own
+  row is lower than `anyone`'s now reads `anyone`'s level.
+- `collaboratorKey` reads `userID` before `username` (microdraw's rows have
+  them equal).
+
+**BrainBox** (M7c):
+
+- The `anyone` row is found by `username` too, not only `userID`.
+- Missing lists no longer throw.
+- `'anyone'` counts as logged out (with `AccessControlService.isLoggedOut`).
+- The `getUserOrPublicAccessLevel` override can call
+  `getEffectiveAccessLevel`, and `collaboratorUser` can use `collaboratorKey`
+  (a non-object row then gives `undefined`).
+
 ## 1.13.0 — 2026-11
 
 ### New
