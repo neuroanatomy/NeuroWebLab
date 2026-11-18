@@ -65,15 +65,24 @@ without an `anyone` row, which no app saves); `removeProject`, `removeUser`;
 `routes` (BrainBox's by default, `null` = not routed); `expectedDifferences`.
 Slice 2 also uses `versions`, `annotations.add`/`readable` and `fileList`,
 slice 3 `setUserFields` and `rows`, slice 4 `annotations.read`/`write`/`file`,
-slice 5 `admin` (below).
+slice 5 `admin` (below). Slice 1 also uses `expiredToken(user)` (1.19, since
+1.21.0): store an expired API token of the user, e.g. in NWL's `log`
+collection `{token, username, expiryDate}` in the past, and return it.
+
+Since 1.21.0 (NWL's route factories, `routes/projectAccess.js`), the texts
+they make common: the page, settings and JSON refusal `Not authorized to view
+project` (1.17); an unknown project's `{error: 'No project <name>'}` and
+`Project Not Found` (1.18); a valid token logged in, an expired one logged
+out (1.19); the delete's 401, 404 and 403 bodies, `{success: false, error,
+message}` (2.31, 2.32, 2.33).
 The two adapters in use are in the coordination folder,
 `tasks/shared-pm-tests-adapters/`.
 
 ## Expected differences
 
 Each check belongs to a rule, named by its row in the feature map
-(coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `2.1`,
-`2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.30` (slice 2, but 2.11),
+(coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `1.17` … `1.19`, `2.1`,
+`2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.33` (slice 2, but 2.11),
 `3.1` … `3.8`, `3.11` … `3.15` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
 `5.4` (slice 5); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is

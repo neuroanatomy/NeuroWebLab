@@ -9,11 +9,15 @@
  * `broken` options turn single rules off, to show the suite fails then.
  */
 const express = require('express');
-const { AccessControlService: ACS, AccessLevel, AccessType, authTokenMiddleware } = require('../index');
+const {
+  AccessControlService: ACS, AccessLevel, AccessType, authTokenMiddleware, projectDeleteRoute, projectJsonRoute,
+  projectKey, projectPageRoute, projectSettingsRoute, visitor
+} = require('../index');
 const { clone, saveHandler } = require('./conformanceSave');
 const { escapeRegex } = require('../db/escapeRegex');
 const { annotationWriteHandler, mayAnnotate } = require('./conformanceAnnotations');
 const { filesSlice, listHandler } = require('./conformancePaging');
+const { refusalVariants, storeDb } = require('./conformanceAccess');
 
 const isAnyone = (c) => c.userID === 'anyone' || c.username === 'anyone';
 const { VIEW } = AccessLevel;
@@ -194,22 +198,22 @@ const userSearchHandler = (broken, findUsers) => async (req, res) => {
 // eslint-disable-next-line max-statements, max-lines-per-function
 const addProjectRoutes = (app, broken, userExists, findUsers) => {
   const store = makeStore(broken);
-  const who = (req) => (req.user ? req.user.username : 'anonymous');
-  const find = (req) => store.current(req.params.p);
+  // NWL's visitor (D1): null when logged out, mapped to this app's sentinel
+  const who = (req) => visitor(req) || 'anonymous';
+  const find = (req) => store.current(req.params.projectName);
+  // what the page, settings and JSON factories read with
+  const reads = { db: () => storeDb(store), canView: (req, p) => ACS.canViewFiles(p, who(req)) };
 
   app.get('/project/new', (req, res) => res.send(req.user ? 'new project' : 'Logging in is required to create a new project.'));
   app.get('/project/json', authTokenMiddleware, listHandler(store, broken, who));
-  app.get('/project/json/:p', authTokenMiddleware, (req, res) => {
-    const p = find(req);
-    if (!p) {
-      return broken.unknownJSONEmpty ? res.send() : res.status(404).json({ error: 'Project not found' });
+  app.get('/project/json/:projectName', authTokenMiddleware, refusalVariants(broken), (req, res, next) => {
+    // `unknownJSONEmpty`: an unknown project answers an empty 200 (BrainBox before 1.6/status)
+    if (broken.unknownJSONEmpty && !find(req)) {
+      return res.send();
     }
-    if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(noViewStatus(req, broken)).json({ error: 'Not authorized to view the project' });
-    }
-    res.json(projectForUser(p, who(req), broken));
-  });
-  app.get('/project/json/:p/files', authTokenMiddleware, (req, res) => {
+    next();
+  }, projectJsonRoute({ ...reads, visible: (req, p) => projectForUser(p, who(req), broken) }));
+  app.get('/project/json/:projectName/files', authTokenMiddleware, (req, res) => {
     const missing = ['start', 'length'].find((key) => typeof req.query[key] === 'undefined');
     if (missing && !broken.filesRangeOptional) {
       return res.json({ error: `Provide '${missing}'` });
@@ -223,24 +227,22 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
     }
     res.json(filesSlice(p.files.list, req.query, broken));
   });
-  app.post('/project/json/:p', authTokenMiddleware, saveHandler(store, broken, userExists));
-  app.delete('/project/json/:p', authTokenMiddleware, (req, res) => {
-    if (!req.user) {
-      return res.status(401).json({ success: false });
+  app.post('/project/json/:projectName', authTokenMiddleware, saveHandler(store, broken, userExists));
+  // `loginRequired`: microdraw's answer to a logged-out delete before 2.31
+  const loginRequired = (req, res, next) => (broken.loginRequired && !req.user ? res.status(401).json({ success: false, message: 'Log in required' }) : next());
+  app.delete('/project/json/:projectName', authTokenMiddleware, loginRequired, projectDeleteRoute({
+    // `unknownDelete500`: the read of an unknown project fails, which the factory passes to next (a 500)
+    db: () => storeDb(store, { failUnknown: broken.unknownDelete500 }),
+    lockKeys: (req) => [projectKey(req.params.projectName)],
+    // `noRemoveCheck`: anyone logged in may delete
+    canRemove: (req, p) => broken.noRemoveCheck || ACS.canRemoveFiles(p, who(req)),
+    remove: (req, p) => {
+      store.markDeleted(p.shortname);
+      if (!broken.keepAnnotations) {
+        store.annotations.filter((a) => a.project === p.shortname).forEach((a) => { a.backup = true; });
+      }
     }
-    const p = find(req);
-    if (!p) {
-      return res.status(broken.unknownDelete500 ? 500 : 404).json({ success: false });
-    }
-    if (!broken.noRemoveCheck && !ACS.canRemoveFiles(p, who(req))) {
-      return res.status(403).json({ success: false });
-    }
-    store.markDeleted(req.params.p);
-    if (!broken.keepAnnotations) {
-      store.annotations.filter((a) => a.project === req.params.p).forEach((a) => { a.backup = true; });
-    }
-    res.json({ success: true });
-  });
+  }));
   // the annotations of a file in a project (`keepAnnotations`: also without the project, as microdraw's F5)
   app.get('/annotations/json', authTokenMiddleware, (req, res) => {
     const p = store.current(req.query.project);
@@ -253,29 +255,21 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
     res.json(store.annotations.filter((a) => a.project === req.query.project && a.source === req.query.source && !a.backup));
   });
   app.post('/annotations/json', authTokenMiddleware, annotationWriteHandler(store, broken, who));
-  app.get('/project/:p', (req, res) => {
-    const p = find(req);
-    if (!p) {
-      return res.status(404).send('Project Not Found');
-    }
-    if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(noViewStatus(req, broken)).send('Not authorized to view the project');
-    }
-    res.send(page('projectInfo', { ...projectForUser(p, who(req), broken), files: { list: [] } }));
-  });
-  app.get('/project/:p/settings', (req, res) => {
-    const p = find(req) || {
-      shortname: req.params.p,
+  app.get('/project/:projectName', refusalVariants(broken), projectPageRoute({
+    ...reads,
+    render: (req, res, p) => res.send(page('projectInfo', { ...projectForUser(p, who(req), broken), files: { list: [] } }))
+  }));
+  app.get('/project/:projectName/settings', refusalVariants(broken), projectSettingsRoute({
+    ...reads,
+    blankProject: (req) => ({
+      shortname: req.params.projectName,
       owner: who(req),
       collaborators: { list: [{ userID: 'anyone', access: { collaborators: 'view', annotations: 'edit', files: 'view' } }] },
       files: { list: [] },
       annotations: { list: [] }
-    };
-    if (!ACS.canViewFiles(p, who(req))) {
-      return res.status(noViewStatus(req, broken)).send('Not authorized to view the project');
-    }
-    res.send(page('project', { ...projectForUser(p, who(req), broken), files: { list: [] } }));
-  });
+    }),
+    render: (req, res, p) => res.send(page('project', { ...projectForUser(p, who(req), broken), files: { list: [] } }))
+  }));
   app.get('/user/json/:u/projects', userProjectsHandler(store, broken, who));
   app.get('/search/json/projects', projectSearchHandler(store, broken, who));
   app.get('/api/userNameQuery', userSearchHandler(broken, findUsers));

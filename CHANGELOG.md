@@ -1,5 +1,139 @@
 # Changelog
 
+## 1.21.0 — 2026-11
+
+### New
+
+- **The project routes' access skeleton**, exported from `require('neuroweblab')`
+  (stage 4, merge M14a, decisions D1 option C and D4 option B), in
+  `routes/projectAccess.js`, shaped as `projectFilesRoute` (1.17.0): a missing
+  adapter function is a `TypeError` naming it, at start-up; any rejected read
+  or hook goes to `next(err)`, so the app's `errorHandler` answers it (a page
+  as a page, JSON as JSON; nothing is caught and answered 200).
+- **`visitor(req)`**: the username, or `null` when logged out (also for a
+  request without `isAuthenticated`). NWL's `authTokenMiddleware` sets
+  `req.user = {username}` for a valid token and nothing for an expired or
+  unknown one, and passport's `isAuthenticated()` is true when `req.user` is
+  set: sessions and tokens are both covered. microdraw's
+  `req.isTokenAuthenticated` branches (`getLoggedUser`, `project`,
+  `settingsUnsafe`, `apiProjectUnsafe`, `projectNew`) are dead code: a valid
+  token already made `isAuthenticated()` true, an expired one sets
+  `isTokenAuthenticated = false` (tested in `routes/projectAccess.spec.js`).
+- **`noViewStatus(req)`**: 401 logged out, 403 logged in (shared suite 1.5).
+- Five factories. The four that read the project take `db` ((req) => the
+  native Db) and `projection` (default `{_id: 0}`; `{}` for the whole
+  document), and read `findCurrentProject(db, req.params.projectName, {projection})`:
+  - **`projectPageRoute({ db, canView, render })`**, `GET /project/:projectName`:
+    `req.session.returnTo = req.originalUrl` (if there is a session); unknown
+    404 text `Project Not Found`; no view right `noViewStatus(req)` text `Not
+    authorized to view project`; else `render(req, res, project)`.
+  - **`projectSettingsRoute({ db, canView, blankProject, render })`**,
+    `GET /project/:projectName/settings`: `returnTo`; a stored project without
+    the view right, as the page; no stored project `blankProject(req)`, not
+    checked; then `render(req, res, project, { isNew })`.
+  - **`projectJsonRoute({ db, canView, visible })`**, `GET /project/json/:projectName`:
+    unknown 404 `{error: 'No project <name>'}`; no view right
+    `noViewStatus(req)` `{error: 'Not authorized to view project'}`; else
+    `visible(req, project)`, and with `?var=a/b` the value at that path, by
+    `res.json`. Own properties only: a path ending on a missing value answers
+    `res.json(undefined)` (an empty 200, as before), a path through one a 500
+    (as before).
+  - **`projectSaveRoute({ lockKeys, save })`**, `POST /project/json/:projectName`:
+    logged out 401 `{success: false, error: 'User not authenticated', message:
+    'User not authenticated'}`, without the lock; else `save(req, res,
+    username)` inside `withLock(lockKeys(req))` (project/lock.js, the apps'
+    `projectLock.js` lock). The save, its 403 and 400 and its answer stay the
+    app's.
+  - **`projectDeleteRoute({ db, lockKeys, canRemove, remove })`**,
+    `DELETE /project/json/:projectName` (the wrapper; the delete is the app's,
+    D4): logged out 401, as the save, without the lock; inside the lock,
+    unknown 404 `{success: false, error: 'Project not found', message: …}`,
+    `canRemove(req, project)` false 403 `{success: false, error: 'The user is
+    not allowed to delete this project', message: …}`, else `extra = await
+    remove(req, project, username)` and 200 `{success: true, message: 'Project
+    deleted', ...extra}`.
+- What stays the app's (in the JSDoc): BrainBox's express-validator
+  `validator`, the `/project/new` page, the routers and the middleware order
+  (`authTokenMiddleware` where each app puts it), and the hooks.
+
+### What the apps must do
+
+Each hook maps `visitor(req) === null` to the app's sentinel; none enters NWL.
+
+- **microdraw** (M14b): `db: (req) => req.appConfig.db.nativeMongoDB()`;
+  `canView: (req, p) => AccessControlService.canViewFiles(p, visitor(req) || 'anyone')`;
+  `render` the page and the settings page as today (`visibleProject`, the
+  collaborators' names, `files.list` emptied, `filesLoaded`); `blankProject`
+  its new project (owner `visitor(req) || 'anyone'`);
+  `visible: (req, p) => visibleProject(p, visitor(req) || 'anyone')`;
+  `lockKeys: (req) => [projectKey(req.params.projectName)]`; `save` its
+  `saveProject`; `canRemove` the REMOVE right; `remove` its
+  `deleteStoredProject`, resolving `{ log }`. **The delete needs
+  `projection: {}`**: its log entry keeps the project's `_id` (`projectId`,
+  test/api/project-lock.spec.js:184). Drop `getLoggedUser`'s token branch.
+- **BrainBox** (M14c): `db: (req) => req.nativeDb`; `canView` and `canRemove`
+  with `visitor(req) || 'anonymous'`; `render` its page and settings page;
+  `blankProject` its new project; `visible` `visibleProject`;
+  `lockKeys: () => ['project', 'mri']` (D3); `save` its `postProject` body
+  inside the lock; `remove` its three writes, resolving nothing. The
+  `validator` stays before the routes.
+
+### What changes for each app, once it uses the factories
+
+| Case | microdraw today | BrainBox today | 1.21.0 |
+|---|---|---|---|
+| page, settings refusal | same | `Authorization required` | `Not authorized to view project` |
+| JSON refusal | same | `{error: 'Authorization required'}` | `{error: 'Not authorized to view project'}` |
+| JSON 404 | `{error: 'Project not found'}` | same | `{error: 'No project <name>'}` |
+| delete 401 | `{success: false, message: 'Log in required'}` | `{success: false, message: 'User not authenticated'}` | `{success: false, error: 'User not authenticated', message: …}` |
+| delete 404 | `{success: false, message: 'Project not found'}` | `message: 'Unable to delete. Project does not exist in the database'` | `{success: false, error: 'Project not found', message: …}` |
+| delete 403 | `{success: false, message: …}` | the same | `error` added, the same text |
+| delete error | 500 `{error: 'Server error'}` | **200** `{success: false, message: 'Unable to delete. Try again later'}` | the errorHandler's 500 `{error}` |
+| page error | **400** text `Error` | 500 text `Server error` | the errorHandler's 500 (the error page) |
+| settings error | 500 text `Error` | 500 text `Server error` | the errorHandler's 500 (the error page) |
+| JSON, save error | 500 `{error: 'Server error'}` | the same | the errorHandler's 500 `{error}` (the message in development) |
+| `?var=` a prototype key | `constructor/name` answered `"Object"`, `__proto__` `{}` | the same | a missing value: `constructor/name` 500, `__proto__` an empty 200 |
+| page, settings `projectInfo._id` | sent (unread; the settings page sends it back, saves drop it) | not read | not read (default projection) |
+
+Who reads these: nwl-components `ProjectInfo.vue` reads only `success` of a
+delete and shows its own `Unable to delete project`, so no delete text is
+shown, before or after; a save shows `error`, unchanged. microdraw's
+`fetchJSON` and `embed-page.js` `getJSON` only read the status of `?var=`
+answers. No client reads the old texts. The apps' own tests that will change:
+BrainBox `test/unit/project.controller.test.js`, microdraw
+`test/api/crash.spec.js`.
+
+The settings page's blank project is no longer checked: microdraw checked it,
+but its `anyone` row has `files: view`, so no visitor was ever refused.
+
+### The suite
+
+- **1.17**: the refusal texts of the page, the settings and the JSON
+  (`Not authorized to view project`), anonymous and a logged-in non-member.
+- **1.18**: an unknown project's texts: JSON `{error: 'No project <name>'}`,
+  page `Project Not Found`.
+- **1.19**: a valid token is its user, logged in (the owner 200, a non-member
+  403); an expired one is logged out (401). A new adapter field,
+  **`expiredToken(user)`**: store an expired token of the user (NWL's `log`
+  collection, `{token, username, expiryDate}`) and return it.
+- **2.31**: a logged-out delete, 401 `{success: false, error: 'User not
+  authenticated', message: …}`, the project stays.
+- **2.32**: a delete of an unknown project, 404 `{success: false, error:
+  'Project not found', message: …}`.
+- **2.33**: a refused delete, 403 `{success: false, error: 'The user is not
+  allowed to delete this project', message: …}`.
+- The reference app (`test/conformanceApp.js`, `conformanceSave.js`) builds
+  its page, settings, JSON, POST and DELETE routes with the factories, over
+  its store as a Db stub (`test/conformanceAccess.js`). The `broken` variants
+  the factories cannot answer are applied around them: `noView401`,
+  `noView403` rewrite the refusal's code; `unknownJSONEmpty` answers before
+  the JSON route (it also fails 1.18 now); `unknownDelete500` makes the read
+  reject (a 500 through `next`; it also fails 2.32); `noRemoveCheck` is
+  `canRemove` (it also fails 2.33); `keepAnnotations` is in `remove`;
+  `noLogin`, `loggedOut403` answer before the save route. New variants:
+  `authorizationRequired` (1.17), `expiredTokenAccepted` (1.19),
+  `loginRequired` (2.31).
+
 ## 1.20.0 — 2026-11
 
 ### New

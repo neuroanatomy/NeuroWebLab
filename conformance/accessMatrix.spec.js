@@ -7,14 +7,22 @@ const assert = require('assert');
 const { accessMatrix } = require('./accessMatrix');
 const { harness } = require('../test/conformanceHarness');
 
+// the cases of 1.21.0's texts and tokens
+const NEW_CASES = /\(1\.1[789]\)$/;
 // the reads of the four project routes, by every visitor
 const READS = /GET \/project\/(json\/)?:p(\/settings|\/files\S*)?( \(a route without token\))?$/;
 
-/* The statuses (1.5, 1.6): each variant answers one old app's code; only `<row>/status` fails */
+/*
+ * The statuses (1.5, 1.6): each variant answers one old app's code; only `<row>/status` fails
+ * (and, for the empty answer to an unknown project, its text, 1.18)
+ */
 const STATUS_VARIANTS = [
-  ['noView401', '1.5/status', READS],
-  ['noView403', '1.5/status', READS],
-  ['unknownJSONEmpty', '1.6/status', /unknown project/]
+  ['noView401', ['1.5/status'], READS],
+  ['noView403', ['1.5/status'], READS],
+  ['unknownJSONEmpty', ['1.6/status', '1.18'], /unknown project/],
+  // 1.21.0: the texts and the tokens (the cases 1.17-1.19)
+  ['authorizationRequired', ['1.17'], NEW_CASES],
+  ['expiredTokenAccepted', ['1.19'], NEW_CASES]
 ];
 
 const h = harness('conformance_spec');
@@ -48,12 +56,15 @@ describe('conformance: slice 1 on an app that follows BrainBox\'s rules', functi
       assert.ok(pending.length > 0 && pending.every((t) => (/\[known difference 1\.[78]/).test(t)), 'pending titles name the difference');
     });
 
-    for (const [option, rule, only] of STATUS_VARIANTS) {
-      it(`${option}: ${rule} fails, and nothing else`, async function () {
+    for (const [option, rules, only] of STATUS_VARIANTS) {
+      it(`${option}: ${rules.join(' and ')} fail${rules.length > 1 ? '' : 's'}, and nothing else`, async function () {
         h.broken[option] = true;
         const { failed, passes } = await h.runNested(accessMatrix, h.adapter({}), only);
         assert.ok(failed.length > 0, 'no failure');
-        assert.deepStrictEqual(failed.filter((f) => !f.rules.every((r) => r === rule)), [], `failures other than ${rule}`);
+        for (const rule of rules) {
+          assert.ok(failed.some((f) => f.rules.includes(rule)), `${rule} did not fail`);
+        }
+        assert.deepStrictEqual(failed.filter((f) => !f.rules.every((r) => rules.includes(r))), [], `failures other than ${rules.join(', ')}`);
         assert.ok(passes > 0, 'no case passed');
       });
     }

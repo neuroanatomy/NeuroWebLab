@@ -8,7 +8,7 @@
 const _ = require('lodash');
 const {
   AccessControlService: ACS, AccessLevel, canSaveProject, ignoredChangesMessage, filesListIncomplete, keepFieldsWithoutFilesEdit, keepListsWithoutEditRights,
-  parseProjectData, saveRefusal, validateProject
+  parseProjectData, projectKey, projectSaveRoute, saveRefusal, validateProject, withLock
 } = require('../index');
 
 const LIST_TYPES = ['files', 'collaborators', 'annotations'];
@@ -210,7 +210,8 @@ const storedFields = (stored) => {
 };
 
 /**
- * The save handler, POST /project/json/:p
+ * The save handler, POST /project/json/:projectName: NWL's projectSaveRoute
+ * (1.21.0) around the save; `noLogin` and `loggedOut403` answer before it
  * @param {object} store The projects (conformanceApp.js)
  * @param {object} broken The rules turned off
  * @param {function(string): Promise<boolean>} userExists Whether a user exists
@@ -218,23 +219,18 @@ const storedFields = (stored) => {
  */
 const saveHandler = (store, broken, userExists) => {
   const { checkDocument, keepLists, sanitize } = rules(broken);
-  let queue = Promise.resolve();
-  // one save at a time (2.20)
-  const locked = (fn) => {
-    queue = queue.then(fn, fn);
-
-    return queue;
-  };
+  // one save at a time (2.20): the project's lock
+  const lockKeys = (req) => [projectKey(req.params.projectName)];
 
   // eslint-disable-next-line max-statements
   const save = async (req, res, who) => {
-    const old = store.current(req.params.p);
+    const old = store.current(req.params.projectName);
     // edit on at least one list (2.2, 2026-11-15); `filesEditToSave`: files edit, the rule before
     const maySave = broken.filesEditToSave ? ACS.canEditFiles : canSaveProject;
     if (old && !broken.noEditCheck && !maySave(old, who)) {
       return res.status(403).json(saveRefusal());
     }
-    const { doc, error } = await checkDocument({ data: req.body.data, shortname: req.params.p, old, who, userExists });
+    const { doc, error } = await checkDocument({ data: req.body.data, shortname: req.params.projectName, old, who, userExists });
     if (error) {
       return res.status(broken.invalid500 ? 500 : 400).json({ error });
     }
@@ -261,11 +257,17 @@ const saveHandler = (store, broken, userExists) => {
     res.json({ success: true, message: `Saved.${ignoredChangesMessage(ignored)}` });
   };
 
-  return async (req, res) => {
-    if (!req.user && !broken.noLogin) {
-      return res.status(broken.loggedOut403 ? 403 : 401).json({ error: 'User not authenticated' });
+  const route = projectSaveRoute({ lockKeys, save });
+
+  return (req, res, next) => {
+    if (!req.user && broken.loggedOut403) {
+      return res.status(403).json({ error: 'User not authenticated' });
     }
-    await locked(() => save(req, res, req.user ? req.user.username : 'anonymous'));
+    if (!req.user && broken.noLogin) {
+      return withLock(lockKeys(req), () => save(req, res, 'anonymous')).catch(next);
+    }
+
+    return route(req, res, next);
   };
 };
 

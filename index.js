@@ -11,6 +11,7 @@ const { wantsJSON, wantsPage, displayPath, notFound, errorHandler } = require('.
 const { listLabelSets, labelSetsRoute } = require('./routes/labelSets');
 const { projectFilesRoute } = require('./routes/projectFiles');
 const { projectListRoute, PROJECTS_PER_PAGE } = require('./routes/projectList');
+const projectAccess = require('./routes/projectAccess');
 const { usernameFromCookie } = require('./auth/sessionUser');
 const { version: packageVersion } = require('./package.json');
 const { authTokenMiddleware, getTokenEndPoint } = require('./auth/token');
@@ -117,5 +118,8 @@ module.exports = {
   // (routes/projectFiles.js, routes/projectList.js)
   projectFilesRoute,
   projectListRoute,
-  PROJECTS_PER_PAGE
+  PROJECTS_PER_PAGE,
+  // 1.21.0: the project routes' access skeleton: visitor, noViewStatus and the
+  // page, settings, JSON, save and delete routes (routes/projectAccess.js)
+  ...projectAccess
 };

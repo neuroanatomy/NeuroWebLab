@@ -95,6 +95,7 @@ const helpers = (adapter, users, prefix) => {
     json,
     listed,
     remove: (user, shortname) => user.client.delete(fill('remove', { p: shortname })),
+    removeLoggedOut: (shortname) => adapter.anonymousClient().delete(fill('remove', { p: shortname })),
     page: (shortname) => users.owner.client.get(fill('page', { p: shortname })),
     settings: (shortname) => users.owner.client.get(fill('settings', { p: shortname })),
     // a project the JSON route answers (1.6: what an unknown project gets differs, it has no owner)

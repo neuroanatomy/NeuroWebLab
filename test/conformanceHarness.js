@@ -92,6 +92,13 @@ const harness = (name) => {
     insertProject: (doc) => { h.store.insert(doc); },
     removeProject: (owner, shortname) => { h.store.removeAll(shortname); },
     versions: (shortname) => h.store.versions(shortname),
+    // 1.19: a token whose expiry date has passed, in NWL's token store
+    expiredToken: async (user) => {
+      const token = `${user.username}expired${crypto.randomBytes(4).toString('hex')}`;
+      await h.db.addToken({ token, username: user.username, expiryDate: new Date(Date.now() - 60000) });
+
+      return token;
+    },
     setUserFields: async (username, fields) => {
       await users().updateOne({ username }, { $set: fields });
     },

@@ -47,6 +47,7 @@ const { client } = require('./http');
  * @property {function(string, object): Promise<void>} [setUserFields] Slice 3 (3.7): store fields of a user made by createUser, e.g. {name, email} (directly is fine)
  * @property {Rows} [rows] Slice 3: the rows of a listing or search answer, in the suite's shape (defaults: both apps' shapes)
  * @property {Admin} [admin] Slice 5: the app's admin routes, page and user, and an admin change
+ * @property {function(User): Promise<string>} [expiredToken] Slice 1 (1.19): store an API token of the user that has expired (directly is fine), and return it
  */
 
 /**
@@ -215,6 +216,7 @@ const resolveAdapter = (adapter) => {
       write: missing('annotations.write', 'write the value of an annotation of a project on a file as a user (slice 4)')
     },
     setUserFields: missing('setUserFields', 'store a name and an email for a user (slice 3: 3.7)'),
+    expiredToken: missing('expiredToken', 'store an API token of a user that has expired, and return it (slice 1: 1.19)'),
     admin: {
       routes: null,
       page: '/admin',

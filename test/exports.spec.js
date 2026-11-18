@@ -19,6 +19,7 @@ const routesNotFound = require('../routes/notFound');
 const routesLabelSets = require('../routes/labelSets');
 const routesProjectFiles = require('../routes/projectFiles');
 const routesProjectList = require('../routes/projectList');
+const routesProjectAccess = require('../routes/projectAccess');
 const sessionUser = require('../auth/sessionUser');
 const dbEscapeRegex = require('../db/escapeRegex');
 const conformance = require('../conformance');
@@ -282,5 +283,18 @@ describe('root exports, 1.20.0', () => {
 
   it('every 1.19.0 export is still there', () => {
     assert.isFunction(nwl.keepListsWithoutEditRights);
+  });
+});
+
+// 1.21.0
+describe('root exports, 1.21.0', () => {
+  const names = ['visitor', 'noViewStatus', 'projectPageRoute', 'projectSettingsRoute', 'projectJsonRoute', 'projectSaveRoute', 'projectDeleteRoute'];
+  it('1.21.0: visitor, noViewStatus and the five project route factories are exported, as the module that holds them', () => {
+    names.forEach((name) => assert.isTrue(typeof nwl[name] === 'function' && nwl[name] === routesProjectAccess[name], name));
+    assert.deepEqual(Object.keys(routesProjectAccess).sort(), [...names].sort());
+  });
+
+  it('every 1.20.0 export is still there', () => {
+    ['validateProject', 'projectRowProblems', 'duplicateLayerNames', 'parseProjectData'].forEach((name) => assert.isFunction(nwl[name], name));
   });
 });

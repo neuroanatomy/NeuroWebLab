@@ -133,7 +133,7 @@ const accessMatrix = (appAdapter, { mocha = global, prefix = `cf${crypto.randomB
       }
     });
 
-    specialCases({ describe, it, C, names, users, runCase, request, fill });
+    specialCases({ describe, it, C, names, users, runCase, request, fill, adapter });
 
     describe('writes', function () {
       for (const projectKey of WRITE_PROJECTS) {
