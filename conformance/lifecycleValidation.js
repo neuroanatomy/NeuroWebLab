@@ -2,7 +2,10 @@
  * Slice 2 cases: the documents a save accepts and refuses. Shortname (2.6),
  * `anyone` row (2.7), access values (2.8), users (2.9), layers (2.10),
  * sanitising (2.12), the answer to an invalid document (2.13, checked by
- * every refusal here), stored rows and blank rows (2.14).
+ * every refusal here), stored rows and blank rows (2.14), and since 1.20.0
+ * the checks NWL's validateProject makes common to both apps: the three lists
+ * (2.27), a collaborator row's user (2.28), a username and userID that differ
+ * (2.29), the types of the project's own fields (2.30).
  */
 const { uniform } = require('./matrix');
 
@@ -117,6 +120,49 @@ module.exports = (t) => {
       const res = await t.save(users.owner, shortname, { ...doc, name: 'Saved with its stored rows' });
       const stored = await t.json(shortname);
       check('2.14', res.status === 200 && stored.name === 'Saved with its stored rows' && t.layerNames(stored).length === 3, `200 and the save stored expected, got ${res.status} ${res.text.slice(0, 120)}`);
+    }));
+
+    it('a stored collaborator row with an access value no new row may have ("viewer") is accepted as it is (2.14)', runCase('save', async (check) => {
+      const shortname = t.track(t.name('storedAccess'));
+      const doc = t.document(shortname);
+      t.rowOf(doc, users.viewer.username).access.files = 'viewer';
+      await adapter.insertProject(t.copy(doc));
+      const res = await t.save(users.owner, shortname, { ...doc, name: 'Saved with a stored access value' });
+      const stored = await t.json(shortname);
+      check('2.14', res.status === 200 && stored.name === 'Saved with a stored access value', `200 and the save stored expected, got ${res.status} ${res.text.slice(0, 120)}`);
+    }));
+
+    it('a new project without its files, collaborators or annotations list is refused (2.27)', runCase('save', async (check) => {
+      for (const type of ['files', 'collaborators', 'annotations']) {
+        const shortname = t.track(t.name(`no-${type}`));
+        const sent = t.document(shortname);
+        delete sent[type];
+        // eslint-disable-next-line no-await-in-loop -- one save at a time
+        await refusedNew(check, '2.27', shortname, await t.save(users.owner, shortname, sent));
+      }
+    }));
+
+    it('a new collaborator row that is not an object, or names its user with a number, is refused (2.28)', runCase('save', async (check) => {
+      const rows = { rowText: users.viewer.username, rowNumber: { userID: 42, username: 42, access: uniform('view') } };
+      for (const [key, value] of Object.entries(rows)) {
+        const shortname = t.track(t.name(key));
+        const sent = t.document(shortname);
+        sent.collaborators.list.push(value);
+        // eslint-disable-next-line no-await-in-loop -- one save at a time
+        await refusedNew(check, '2.28', shortname, await t.save(users.owner, shortname, sent));
+      }
+    }));
+
+    it('a new collaborator row whose username and userID name two users is refused (2.29)', newRefused('twoKeys', (doc) => {
+      doc.collaborators.list.push({ userID: users.viewer.username, username: users.editor.username, access: uniform('view') });
+    }, '2.29'));
+
+    it('a project name, description or url that is not a string is refused (2.30)', runCase('save', async (check) => {
+      for (const field of ['name', 'description', 'url']) {
+        const shortname = t.track(t.name(`number-${field}`));
+        // eslint-disable-next-line no-await-in-loop -- one save at a time
+        await refusedNew(check, '2.30', shortname, await t.save(users.owner, shortname, { ...t.document(shortname), [field]: 5 }));
+      }
     }));
 
     it('blank new rows (file, collaborator, layer) are dropped, the save stored (2.14)', runCase('save', async (check) => {

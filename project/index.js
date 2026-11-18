@@ -27,6 +27,7 @@ const {
 const { visibleProject, isAnyoneRow, collaboratorKey } = require('./visible');
 const { CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion } = require('./versions');
 const { withLock, isLocked, projectKey, withProjectLock } = require('./lock');
+const { validateProject, projectRowProblems, duplicateLayerNames, parseProjectData } = require('./validate');
 
 module.exports = {
   canSaveProject,
@@ -59,5 +60,10 @@ module.exports = {
   withLock,
   isLocked,
   projectKey,
-  withProjectLock
+  withProjectLock,
+  // 1.20.0: the validation core (validate.js)
+  validateProject,
+  projectRowProblems,
+  duplicateLayerNames,
+  parseProjectData
 };

@@ -38,7 +38,11 @@ const VARIANTS = [
   ['noRemoveCheck', ['2.22']],
   ['unknownDelete500', ['2.23']],
   ['keepAnnotations', ['2.24']],
-  ['inheritDeleted', ['2.25']]
+  ['inheritDeleted', ['2.25']],
+  ['listsOptional', ['2.27']],
+  ['badRowsDropped', ['2.28']],
+  ['differentKeysAllowed', ['2.29']],
+  ['fieldTypesUnchecked', ['2.30']]
 ];
 
 describe('conformance: slice 2 on an app that follows the approved rules', function () {

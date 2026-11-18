@@ -8,6 +8,7 @@ const projectRules = require('../project/rules');
 const projectVisible = require('../project/visible');
 const projectVersions = require('../project/versions');
 const projectLock = require('../project/lock');
+const projectValidate = require('../project/validate');
 const admin = require('../admin');
 const adminAdmins = require('../admin/admins');
 const adminActions = require('../admin/actions');
@@ -266,5 +267,20 @@ describe('root exports, 1.19.0', () => {
     for (const name of ['withLock', 'isLocked', 'projectKey', 'withProjectLock']) {
       assert.isFunction(nwl[name], name);
     }
+  });
+});
+
+// 1.20.0
+describe('root exports, 1.20.0', () => {
+  it('1.20.0: validateProject, projectRowProblems, duplicateLayerNames and parseProjectData are exported, as the module that holds them', () => {
+    for (const name of ['validateProject', 'projectRowProblems', 'duplicateLayerNames', 'parseProjectData']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectValidate[name], name);
+    }
+  });
+
+  it('every 1.19.0 export is still there', () => {
+    assert.isFunction(nwl.keepListsWithoutEditRights);
   });
 });

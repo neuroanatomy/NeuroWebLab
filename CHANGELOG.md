@@ -1,5 +1,131 @@
 # Changelog
 
+## 1.20.0 — 2026-11
+
+### New
+
+- **`validateProject(data, { shortname, oldProject, owner, findMissingUsers, rules })`**,
+  exported from `require('neuroweblab')` (stage 4, merge M13, decision D2
+  option A), in `project/validate.js`. The validation both apps share of a
+  document sent to `POST /project/json/:projectName`; the text and file rules
+  stay the app's, through `rules`. It answers `{ project, dropped, stored }`
+  or `{ error }` (a 400), and never throws for a bad document: it rejects
+  only when `findMissingUsers` or a rule does, or with a `TypeError` naming a
+  hook `rules` lacks. The steps, in microdraw's order:
+  1. parse (a JSON string or a plain object, else `Invalid project data`);
+  2. `sanitize` every string, drop `_id` and `backup`;
+  3. `sortRows` each list against the stored rows sanitised (`rules.rowKey`,
+     `rules.isBlankRow`): stored rows accepted as they are, blank new rows
+     dropped and counted;
+  4. the shortname (the URL's; a new one matches `shortnamePattern`);
+  5. the three lists (`The project needs a <type> list`);
+  6. `name`, `description`, `url` strings when present, then `rules.fieldsError`;
+  7. the rows not stored: files (`rules.fileError`), collaborators (core:
+     object, user, `username` = `userID`, access values), layers
+     (`rules.layerError`); the first error, in that order;
+  8. duplicate layer names; 9. an `anyone` row; 10. `username` ≠ `userID` on
+     a stored row; 11. `rules.projectError`; 12. `project.owner = owner`;
+  13. the users (`findMissingUsers`, once): `Unknown users: a, b`.
+- **`projectRowProblems(project, rules)`**: every problem of a project's rows
+  as if all were new (microdraw's `rowProblemList`), with the same per-row
+  functions as step 7 and step 8, so the two never disagree.
+- **`duplicateLayerNames(list, stored)`** (microdraw's) and
+  **`parseProjectData(data)`** (microdraw's) are exported too.
+- **`rules`**, a plain object: `collaboratorUser(row)`, `fileError(file, i)`,
+  `layerError(layer, i)`, `fieldsError(project, { oldProject, isNew })`,
+  `projectError(project, { oldProject, isNew, stored })` (the last two may be
+  async), all required; `rowKey` (default: the whole row) and `isBlankRow`
+  (default: NWL's), by list; two options added because the core could not
+  otherwise keep BrainBox's behaviour:
+  - `checkStoredFields` (default `true`): `false` accepts a step 6 field equal
+    to the stored value sanitised. BrainBox merges the stored fields into the
+    body before validating, so a stored `description: null` would block every
+    save;
+  - `checkStoredKeys` (default `true`, microdraw's): `false` skips step 10.
+    BrainBox doesn't write both keys, and never refused a stored row for it.
+- What stays the app's (in the JSDoc): merging the stored fields (BrainBox
+  before, microdraw after), writing both collaborator keys (microdraw's
+  `withBothKeys`), the rights (403) before the validation, the 400 answer.
+
+### The checks
+
+| Step | Check | Rows | microdraw text | BrainBox text | Where |
+|---|---|---|---|---|---|
+| 1 | parse | | `Invalid project data` | none (the next steps' `TypeError`s) | core |
+| 3 | stored rows, blank rows | | | | core (`rowKey`, `isBlankRow`) |
+| 4 | body shortname = URL's; new one's characters | | same texts | same texts | core |
+| 5 | three lists | | `The project needs a <type> list` | collaborators, annotations: a `TypeError` text (`Cannot read properties of undefined (reading 'list')`); files: none, a new project then answers 500 | core |
+| 6 | `name`, `description`, `url` strings | sent | `The project <field> must be a string` | name, description: validator's `Expected a string but received a number`; url: none | core |
+| 6 | name, description whitelist | new values | none | `Invalid name`, `Invalid project description` | `fieldsError` (BrainBox) |
+| 7 | file shape, source, name | new | `File i must be an object…`, `…needs a source…`, `…needs a name` | `File source not specified`, `File name not specified`, `Invalid file URL: s`, `Invalid file name "n"` | `fileError` |
+| 7 | collaborator: object, user | new | `Collaborator i must be an object`, `…needs a username` | `Access values are invalid` / the users check | core |
+| 7 | `username` ≠ `userID` | new | `Collaborator i has a different username (a) and userID (b): they must be equal` | none | core |
+| 7 | access values | new | `Collaborator <user> has invalid access values (allowed: …)` | `Access values are invalid` | core |
+| 7 | layer type, name | new | `Annotation i has an invalid type…`, `…needs a name` | `Layer i has an invalid type…`, `…needs a name` | `layerError` |
+| 8 | duplicate layer names | new, against all | `Annotation i has the same name as annotation j: "n" …` | `Layer i has the same name as layer j: "n" …` | core |
+| 9 | an `anyone` row | all | `The collaborators list needs an 'anyone' entry` | `User 'anyone' is not present` (`userID` only) | core |
+| 10 | `username` ≠ `userID` | stored | as step 7 | none | core (`checkStoredKeys`) |
+| 11 | a `volume` layer | all | none | `Annotations must contain at least 1 volume-type entry` | `projectError` (BrainBox) |
+| 11 | stored file names against the `mri` documents | stored | none | `Invalid file name "n"` | `projectError` (BrainBox) |
+| 12 | an owner | | none | `The project has no owner` | core |
+| 13 | users exist | new rows, a new project's owner | `Unknown users: a, b` | `Users are invalid, one or more do not exist` | core (`findMissingUsers`) |
+
+Order: microdraw checks the fields (6) before the lists (5); the core checks
+the lists first, a text change only. BrainBox's order was files, fields,
+shortname, owner, `anyone`, access, layers (type, name and duplicate, layer
+by layer), `volume`, stored file names, users.
+
+### What the apps must do
+
+Nothing changes until an app switches (M13b, M13c).
+
+**microdraw** (M13b): `checkProject` calls `validateProject` with
+`collaboratorUser: collaboratorName`, its `fileError` and `annotationError`
+(as `layerError`), its `rowKey` and `isBlankRow`, `fieldsError` and
+`projectError` returning null; it keeps `withBothKeys` after it, and
+`missingUsers(db, names)` as `findMissingUsers`. `project.check.js` uses
+`projectRowProblems` for `rowProblemList`. **Stricter:** nothing. **Texts:**
+none, but a document with both a bad field and a missing list answers the list.
+
+**BrainBox** (M13c): `isProjectObject` becomes `validateProject` with
+`collaboratorUser` (project-rows.js), `rowKey`, `fileError` (the source and
+the whitelisted name), `layerError` (`layerTypes`, a name), `fieldsError`
+(the whitelist, a stored value kept), `projectError` (a `volume` layer, the
+stored file names against `mri`), `checkStoredFields: false`,
+`checkStoredKeys: false`, and a `findMissingUsers` on `user.nickname`;
+`postProject` checks the rights (403) before. **Stricter, new rows or values
+only:** a `username` and `userID` both set and different; a `url` that isn't a
+string; a new project without a files list (400, was 500). **Less strict:** an
+`anyone` row is also read by `nickname` or `username`; `anyone` isn't looked
+up as a user. **Texts that change** (steps 5, 6, 7, 8, 9, 13): the core's
+above. The settings page shows `error`: step 8 says "Annotation" where
+BrainBox says "Layer", and the step 7 `username`/`userID` text names a key
+BrainBox's page doesn't show (only an API client can send it).
+
+### Suite
+
+- **2.27**: a new project without its files, collaborators or annotations
+  list is refused. **2.28**: a new collaborator row that isn't an object, or
+  names its user with a number, is refused (a row naming nobody is blank and
+  dropped, 2.14). **2.29**: a new row whose `username` and `userID` name two
+  users is refused. **2.30**: a `name`, `description` or `url` that isn't a
+  string is refused. **2.14** gains a case: a stored collaborator row with
+  `files: 'viewer'` is accepted as it is. The existing cases are unchanged.
+- The reference app (`test/conformanceSave.js`) validates with
+  `validateProject` and rules of its own (its blank rows: a value missing or
+  spaces, so a row naming its user with a number is refused, 2.28). The variants of a core check work
+  around it: `shortnameFromBody` and `ownerFromClient` pass the body's (no owner: the
+  core refuses);
+  `keepClientFields` puts `_id`/`backup` back; `noAnyone` adds an `anyone` row
+  for the check and removes it; `accessSubstring` reads "viewer" as "view";
+  `usersEveryRow` checks every row after; `validateStoredRows` gives a
+  `rowKey` that never matches and no blank rows; `sanitizeJSON` escapes `&`
+  first; `noLayerNames` drops the name check (the core still refuses
+  duplicates). New variants: `listsOptional` (2.27), `badRowsDropped` (2.28),
+  `differentKeysAllowed` (2.29), `fieldTypesUnchecked` (2.30).
+- `project/validate.spec.js`, with no database; `test/exports.spec.js` checks
+  the new names. Nothing is renamed or removed.
+
 ## 1.19.0 — 2026-11
 
 ### New
