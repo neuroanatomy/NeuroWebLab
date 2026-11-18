@@ -73,7 +73,7 @@ The two adapters in use are in the coordination folder,
 
 Each check belongs to a rule, named by its row in the feature map
 (coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `2.1`,
-`2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.25` (slice 2, but 2.11),
+`2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.26` (slice 2, but 2.11),
 `3.1` … `3.8`, `3.11` … `3.15` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
 `5.4` (slice 5); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is
@@ -99,7 +99,8 @@ edit only, and annotations edit only); the stored state is read back as the owne
 answer, 400 `{error}` (2.13). A save needs `edit` on at least one list of
 the stored version, the project's own fields `files: edit` (2.2, since
 2026-11-15, NWL 1.9.0); a save whose `filesLoaded.count` is not the stored
-files list's length keeps the stored list (2.21, NWL 1.9.0). Not in the slice: 2.11 (the files' shape: the
+files list's length keeps the stored list (2.21, NWL 1.9.0). A list reordered needs `edit`
+on it, as a row changed in place (2.26, NWL 1.19.0). Not in the slice: 2.11 (the files' shape: the
 slice reads them through `fileList`), the
 lock itself (2.20: only the outcome of two saves at once).
 

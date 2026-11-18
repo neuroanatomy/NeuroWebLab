@@ -1,7 +1,8 @@
 /**
  * Rules for saving project documents (NeuroWebLab 1.9.0), validation helpers
  * (1.10.0), what a visitor may see of a project (1.14.0), project versions
- * (1.16.0) and the project lock (1.18.0). Each name is also exported from the
+ * (1.16.0), the project lock (1.18.0) and the rights each list's changes
+ * need (1.19.0). Each name is also exported from the
  * root `index.js`.
  */
 const {
@@ -9,7 +10,8 @@ const {
   keepFieldsWithoutFilesEdit,
   saveRefusal,
   ignoredChangesMessage,
-  filesListIncomplete
+  filesListIncomplete,
+  keepListsWithoutEditRights
 } = require('./save');
 const {
   plainText,
@@ -32,6 +34,8 @@ module.exports = {
   saveRefusal,
   ignoredChangesMessage,
   filesListIncomplete,
+  // 1.19.0: the rights each list's changes need (save.js)
+  keepListsWithoutEditRights,
   // 1.10.0: validation helpers (rules.js)
   plainText,
   sanitize,

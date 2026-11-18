@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 const { assert } = require('chai');
 const Configuration = require('../Configuration');
 const {
@@ -5,7 +6,8 @@ const {
   keepFieldsWithoutFilesEdit,
   saveRefusal,
   ignoredChangesMessage,
-  filesListIncomplete
+  filesListIncomplete,
+  keepListsWithoutEditRights
 } = require('./save');
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -277,6 +279,176 @@ describe('project/save', () => {
       const kept = { files: 2 };
       assert.isFalse(filesListIncomplete(sentWith({ count: 2 }), stored(), kept));
       assert.deepEqual(kept, { files: 2 });
+    });
+  });
+
+  // eslint-disable-next-line max-statements
+  describe('keepListsWithoutEditRights: a longer list needs add, a shorter one remove, any other difference edit', () => {
+    const TYPES = ['collaborators', 'files', 'annotations'];
+    // a member per list and level, with view on the other lists: `${type}:${level}`
+    const member = (type, level) => `${type}:${level}`;
+    // view on every list
+    const viewer = member('collaborators', 'view');
+    const memberRows = TYPES.flatMap((type) => ['view', 'edit', 'add', 'remove'].map((level) => {
+      const a = { files: 'view', annotations: 'view', collaborators: 'view' };
+      a[type] = level;
+
+      return row(member(type, level), a);
+    }));
+    const project = () => ({
+      shortname: 'list-rights',
+      owner: 'owner',
+      collaborators: { list: [row('anyone', access('none', 'none', 'none')), ...memberRows] },
+      files: { list: [{ source: '/a.json', name: 'a' }, { source: '/b.json', name: 'b' }, { source: '/c.json', name: 'c' }] },
+      annotations: { list: [{ type: 'vectorial', name: 'One', values: 'r.json' }, { type: 'vectorial', name: 'Two', values: 'r.json' }] }
+    });
+    const extra = { collaborators: () => row('newcomer', access('view', 'view', 'view')), files: () => ({ source: '/d.json', name: 'd' }), annotations: () => ({ type: 'vectorial', name: 'Three', values: 'r.json' }) };
+    // each change, and the level it needs
+    const changes = {
+      longer: { needs: 'add', without: 'edit', apply: (list, type) => list.push(extra[type]()) },
+      shorter: { needs: 'remove', without: 'add', apply: (list) => list.pop() },
+      'a row changed in place': { needs: 'edit', without: 'view', apply: (list, type) => { list[1] = type === 'files' ? { ...list[1], source: '/changed.json' } : { ...list[1], name: 'changed' }; } },
+      'a move': { needs: 'edit', without: 'view', apply: (list) => { [list[0], list[1]] = [list[1], list[0]]; } }
+    };
+    // collaborators: a row changed in place changes its access (its name is not in microdraw's key)
+    changes['a row changed in place'].collaborators = (list) => { list[1] = { ...list[1], access: { ...list[1].access, files: 'none' } }; };
+
+    const sentWith = (type, change) => {
+      const sent = project();
+      (changes[change][type] || changes[change].apply)(sent[type].list, type);
+
+      return sent;
+    };
+
+    for (const type of TYPES) {
+      for (const change of Object.keys(changes)) {
+        const { needs, without } = changes[change];
+        it(`${type}, ${change}: stored with ${needs}`, () => {
+          const sent = sentWith(type, change);
+          const { list } = sent[type];
+          assert.deepEqual(keepListsWithoutEditRights(sent, project(), member(type, needs)), []);
+          assert.strictEqual(sent[type].list, list);
+        });
+        it(`${type}, ${change}: kept as stored without ${needs} (${without}), and named`, () => {
+          const sent = sentWith(type, change);
+          const old = project();
+          assert.deepEqual(keepListsWithoutEditRights(sent, old, member(type, without)), [type]);
+          assert.strictEqual(sent[type].list, old[type].list);
+        });
+      }
+    }
+
+    it('add implies edit: a longer list with a row changed in place is stored with add, not with edit', () => {
+      const sent = sentWith('annotations', 'longer');
+      sent.annotations.list[0].name = 'changed';
+      assert.deepEqual(keepListsWithoutEditRights(clone(sent), project(), member('annotations', 'add')), []);
+      assert.deepEqual(keepListsWithoutEditRights(clone(sent), project(), member('annotations', 'edit')), ['annotations']);
+    });
+
+    it('remove implies edit: a shorter list with a row changed in place is stored with remove, not with add', () => {
+      const sent = sentWith('files', 'shorter');
+      sent.files.list[0] = { source: '/changed.json', name: 'a' };
+      assert.deepEqual(keepListsWithoutEditRights(clone(sent), project(), member('files', 'remove')), []);
+      assert.deepEqual(keepListsWithoutEditRights(clone(sent), project(), member('files', 'add')), ['files']);
+    });
+
+    it('rowKey: a difference outside the key is no change; without rowKey, it is', () => {
+      const rowKey = { collaborators: (c) => ({ user: c.username, access: c.access }) };
+      const renamed = () => {
+        const sent = project();
+        sent.collaborators.list[1] = { ...sent.collaborators.list[1], name: 'A display name' };
+
+        return sent;
+      };
+      const sent = renamed();
+      assert.deepEqual(keepListsWithoutEditRights(sent, project(), viewer, { rowKey }), []);
+      assert.strictEqual(sent.collaborators.list[1].name, 'A display name');
+      const unkeyed = renamed();
+      assert.deepEqual(keepListsWithoutEditRights(unkeyed, project(), viewer), ['collaborators']);
+      assert.strictEqual(unkeyed.collaborators.list[1].name, member('collaborators', 'view'));
+    });
+
+    it('rowKey: a list without a key compares whole rows; a key that is not a function is a TypeError', () => {
+      const sent = project();
+      sent.files.list[0] = { ...sent.files.list[0], name: 'renamed' };
+      assert.deepEqual(keepListsWithoutEditRights(sent, project(), viewer, { rowKey: { collaborators: (c) => c.username } }), ['files']);
+      assert.throws(() => keepListsWithoutEditRights(project(), project(), viewer, { rowKey: { files: 'source' } }), TypeError, /rowKey\.files/);
+    });
+
+    describe('oldRows', () => {
+      // the stored layer has markup, which the body's sanitiser removes (BrainBox's oldLists)
+      const marked = () => {
+        const old = project();
+        old.annotations.list[0].name = '<b>One</b>';
+
+        return old;
+      };
+      const oldRows = { annotations: project().annotations.list };
+
+      it('the comparison uses oldRows when given: the stored rows as sanitised are no change', () => {
+        const sent = project();
+        assert.deepEqual(keepListsWithoutEditRights(sent, marked(), viewer, { oldRows }), []);
+        assert.deepEqual(keepListsWithoutEditRights(project(), marked(), viewer), ['annotations']);
+      });
+
+      it('a list put back is the stored one, never oldRows', () => {
+        const sent = project();
+        sent.annotations.list.reverse();
+        const old = marked();
+        assert.deepEqual(keepListsWithoutEditRights(sent, old, viewer, { oldRows }), ['annotations']);
+        assert.strictEqual(sent.annotations.list, old.annotations.list);
+        assert.strictEqual(sent.annotations.list[0].name, '<b>One</b>');
+      });
+
+      it('a list oldRows lacks is compared with the stored rows', () => {
+        const sent = project();
+        sent.files.list.reverse();
+        assert.deepEqual(keepListsWithoutEditRights(sent, project(), viewer, { oldRows }), ['files']);
+      });
+    });
+
+    it('the result: the ignored lists in list order, each once', () => {
+      const sent = project();
+      sent.annotations.list.reverse();
+      sent.files.list.push(extra.files());
+      sent.files.list[0] = { source: '/changed.json', name: 'a' };
+      sent.collaborators.list.pop();
+      const old = project();
+      assert.deepEqual(keepListsWithoutEditRights(sent, old, viewer), ['collaborators', 'files', 'annotations']);
+      assert.strictEqual(sent.collaborators.list, old.collaborators.list);
+      assert.strictEqual(sent.files.list, old.files.list);
+      assert.strictEqual(sent.annotations.list, old.annotations.list);
+    });
+
+    it('the lists whose changes are allowed are untouched', () => {
+      const some = project();
+      some.annotations.list.reverse();
+      some.files.list.reverse();
+      const [collaborators, annotations] = [some.collaborators.list, some.annotations.list];
+      assert.deepEqual(keepListsWithoutEditRights(some, project(), member('annotations', 'edit')), ['files']);
+      assert.strictEqual(some.collaborators.list, collaborators);
+      assert.strictEqual(some.annotations.list, annotations);
+    });
+
+    it('changes newProject in place, and neither oldProject nor its other fields', () => {
+      const sent = { ...project(), name: 'Sent name' };
+      sent.files.list.reverse();
+      const old = project();
+      const before = clone(old);
+      keepListsWithoutEditRights(sent, old, viewer);
+      assert.deepEqual(old, before);
+      assert.strictEqual(sent.name, 'Sent name');
+      assert.deepEqual(sent.files.list, before.files.list);
+    });
+
+    it('a stored project without a list: that list is []', () => {
+      const old = project();
+      delete old.annotations;
+      const empty = { ...project(), annotations: { list: [] } };
+      assert.deepEqual(keepListsWithoutEditRights(empty, old, viewer), []);
+      const grown = project();
+      assert.deepEqual(keepListsWithoutEditRights(grown, old, member('annotations', 'edit')), ['annotations']);
+      assert.deepEqual(grown.annotations.list, []);
     });
   });
 });

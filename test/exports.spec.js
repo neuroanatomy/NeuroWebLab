@@ -249,3 +249,22 @@ describe('root exports, 1.18.0', () => {
     assert.exists(nwl.PROJECTS_PER_PAGE);
   });
 });
+
+// 1.19.0
+describe('root exports, 1.19.0', () => {
+  it('1.19.0: keepListsWithoutEditRights is exported, as the module that holds it', () => {
+    assert.isFunction(nwl.keepListsWithoutEditRights);
+    assert.strictEqual(nwl.keepListsWithoutEditRights, project.keepListsWithoutEditRights);
+    assert.strictEqual(nwl.keepListsWithoutEditRights, projectSave.keepListsWithoutEditRights);
+  });
+
+  it('preventUnauthorizedUpdates is still there, unchanged in name', () => {
+    assert.isFunction(nwl.AccessControlService.preventUnauthorizedUpdates);
+  });
+
+  it('every 1.18.0 export is still there', () => {
+    for (const name of ['withLock', 'isLocked', 'projectKey', 'withProjectLock']) {
+      assert.isFunction(nwl[name], name);
+    }
+  });
+});

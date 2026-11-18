@@ -1,6 +1,7 @@
 /**
  * Save rights for an existing project's own fields, and the incomplete files
- * list guard (NeuroWebLab 1.9.0, stage 4 merge M2). The apps' code: the
+ * list guard (NeuroWebLab 1.9.0, stage 4 merge M2), and the rights each
+ * list's changes need (1.19.0, M12). The apps' code: the
  * same in microdraw and BrainBox since 2026-11-15, but where it says which
  * app's version it is.
  */
@@ -90,6 +91,75 @@ const keepFieldsWithoutFilesEdit = (newProject, oldProject, loggedUser, { saniti
   return changed;
 };
 
+// the lists in the order both apps check them, and name them in the message
+const LIST_ORDER = [AccessType.COLLABORATORS, AccessType.FILES, AccessType.ANNOTATIONS];
+
+// what a row of a list is compared on: the caller's rowKey[type], else the whole row
+const rowKeyOf = (rowKey, type) => {
+  if (!_.isPlainObject(rowKey) || !_.has(rowKey, type)) {
+    return _.identity;
+  }
+  const key = rowKey[type];
+  if (typeof key !== 'function') {
+    throw new TypeError(`keepListsWithoutEditRights: options.rowKey.${type} must be a function`);
+  }
+
+  return key;
+};
+
+/**
+ * Keep the stored version of each list (collaborators, files, annotations)
+ * whose change the user's rights on it don't allow (2026-11-11, shared suite
+ * 2.3, 2.4, 2.26; NeuroWebLab 1.19.0, stage 4 merge M12). Checked list by
+ * list, against the stored project and the user's rights on it
+ * (`AccessControlService.hasAccess`):
+ * - a longer list needs `add`;
+ * - a shorter one needs `remove`;
+ * - a list that differs in any other way (a row changed in place, or moved)
+ *   needs `edit`. The levels are ordered, so `add` and `remove` imply `edit`.
+ *
+ * "Differs": the rows sent, mapped by `rowKey[type]`, are not deep equal
+ * (lodash `isEqual`), in order, to the comparison rows mapped the same way:
+ * `oldRows[type]` if given (BrainBox: the stored rows sanitised as the body,
+ * as given to sortRows), else the stored rows. A list put back is always the
+ * stored one, `listOf(oldProject, type)`, never `oldRows`.
+ *
+ * `newProject` is changed in place, as keepFieldsWithoutFilesEdit and
+ * preventUnauthorizedUpdates do. Both apps' validation refuses a document
+ * without the three lists before this is called (microdraw checkProject: each
+ * a plain object with an array `list`; BrainBox isProjectObject: collaborators
+ * and annotations, and an existing project's files, sent or the stored ones),
+ * so `newProject[type].list` is not checked here. A stored project without a
+ * list has `[]`. A new project (no `oldProject`) is the caller's: both apps
+ * skip the call.
+ *
+ * The rule of both apps' code: microdraw preventUnauthorizedUpdates and its
+ * own keepListsWithoutEditRights (comparableEntry), BrainBox postProject's
+ * loop (project-rows.js rowKey, listChanged).
+ * @param {object} newProject The project to save (changed in place)
+ * @param {object} oldProject The stored project
+ * @param {string} loggedUser The user saving
+ * @param {object} [options] Options
+ * @param {object} [options.rowKey] What a row is compared on, by list: a function of the row; a list without one compares whole rows
+ * @param {object} [options.oldRows] The rows to compare with, by list, instead of the stored ones
+ * @returns {Array<string>} The lists whose changes were ignored, each once, in the order collaborators, files, annotations
+ */
+const keepListsWithoutEditRights = (newProject, oldProject, loggedUser, { rowKey, oldRows } = {}) => LIST_ORDER.filter((type) => {
+  const storedRows = listOf(oldProject, type);
+  const rows = newProject[type].list;
+  const comparedRows = (oldRows && Array.isArray(oldRows[type])) ? oldRows[type] : storedRows;
+  const key = rowKeyOf(rowKey, type);
+  const may = (level) => AccessControlService.hasAccess(type, level, oldProject, loggedUser);
+  const refused = (rows.length > storedRows.length && !may(AccessLevel.ADD)) ||
+    (rows.length < storedRows.length && !may(AccessLevel.REMOVE)) ||
+    (!_.isEqual(rows.map((r) => key(r)), comparedRows.map((r) => key(r))) && !may(AccessLevel.EDIT));
+  if (refused) {
+    newProject[type].list = storedRows;
+  }
+
+  return refused;
+});
+
 /**
  * Whether the files list sent is incomplete: the settings page loads the
  * files in batches and sends how many it received (`filesLoaded.count`); if
@@ -123,5 +193,6 @@ module.exports = {
   keepFieldsWithoutFilesEdit,
   saveRefusal,
   ignoredChangesMessage,
-  filesListIncomplete
+  filesListIncomplete,
+  keepListsWithoutEditRights
 };

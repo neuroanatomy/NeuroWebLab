@@ -2,10 +2,11 @@
  * Slice 2 cases: saving needs a login (2.1) and `edit` on at least one list
  * of the stored version, the project's own fields `files: edit` (2.2); lists
  * grow with `add`, shrink with `remove` (2.3); rows change in place with
- * `edit` (2.4); the owner is never the client's (2.5); a files list sent
- * before the settings page received every file is not saved (2.21).
+ * `edit` (2.4), and move with `edit` (2.26, NWL 1.19.0); the owner is never
+ * the client's (2.5); a files list sent before the settings page received
+ * every file is not saved (2.21).
  */
-const { parse } = require('./checks');
+const { parse, rowName } = require('./checks');
 const { uniform } = require('./matrix');
 
 const level = (t, project, username, type) => ((t.rowOf(project, username) || {}).access || {})[type];
@@ -17,9 +18,25 @@ const ignoredIn = (message) => {
   return m ? m[1].split(',').map((s) => s.trim()) : null;
 };
 
+// the collaborators of a project, by name, in order
+const collaboratorNames = (project) => ((project && project.collaborators && project.collaborators.list) || []).map(rowName);
+
+// a document with its files and layers reversed and its second and third collaborators swapped (2.26)
+const reordered = (doc) => {
+  doc.files.list.reverse();
+  doc.annotations.list.reverse();
+  const [first, second] = [doc.collaborators.list[1], doc.collaborators.list[2]];
+  doc.collaborators.list[1] = second;
+  doc.collaborators.list[2] = first;
+
+  return doc;
+};
+
 // eslint-disable-next-line max-lines-per-function
 module.exports = (t) => {
   const { describe, it, runCase, users, R } = t;
+  // a project with two layers (2.26)
+  const twoLayers = () => ({ extra: { annotations: { list: [t.layer('Layer'), t.layer('Second layer')] } } });
 
   describe('save: login, edit rights, list lengths, rows in place, owner', function () {
     it(`anonymous: POST ${R.save} of a new project is refused, 401, nothing stored (2.1)`, runCase('save', async (check) => {
@@ -125,6 +142,29 @@ module.exports = (t) => {
       const res = await t.save(users.editor, shortname, sent);
       const stored = await t.json(shortname);
       check('2.4', res.status === 200 && level(t, stored, users.viewer.username, 'files') === 'edit' && t.layerNames(stored)[0] === 'Renamed layer', `200 and the changes stored expected, got ${res.status}, ${JSON.stringify(t.layerNames(stored))}`);
+    }));
+
+    it('collaborator with files edit, collaborators and annotations view: collaborators and layers reordered are kept in the stored order, named as ignored; the files reordered are stored (2.26)', runCase('save', async (check) => {
+      const { shortname, doc } = await t.create('reorder', twoLayers());
+      const sent = reordered(t.copy(doc));
+      const res = await t.save(users.filesEditor, shortname, sent);
+      check('2.26', res.status === 200, `200 expected, got ${res.status} ${res.text.slice(0, 120)}`);
+      const ignored = ignoredIn(t.message(res)) || [];
+      check('2.26', ignored.includes('collaborators') && ignored.includes('annotations') && !ignored.includes('files'), `"Some changes (on collaborators, annotations) were ignored…" expected, got ${JSON.stringify(t.message(res))}`);
+      const stored = await t.json(shortname);
+      check('2.26', JSON.stringify(collaboratorNames(stored)) === JSON.stringify(collaboratorNames(doc)), `the stored collaborators order expected, got ${JSON.stringify(collaboratorNames(stored))}`);
+      check('2.26', JSON.stringify(t.layerNames(stored)) === JSON.stringify(t.layerNames(doc)), `the stored layers order ${JSON.stringify(t.layerNames(doc))} expected, got ${JSON.stringify(t.layerNames(stored))}`);
+      const sources = sent.files.list.map((f) => f.source);
+      check('2.26', JSON.stringify(t.sources(stored)) === JSON.stringify(sources), `the files in the new order ${JSON.stringify(sources)} expected, got ${JSON.stringify(t.sources(stored))}`);
+    }));
+
+    it('collaborator with edit: collaborators, files and layers reordered are stored in the new order (2.26)', runCase('save', async (check) => {
+      const { shortname, doc } = await t.create('reorderEdit', twoLayers());
+      const sent = reordered(t.copy(doc));
+      const res = await t.save(users.editor, shortname, sent);
+      const stored = await t.json(shortname);
+      const order = (p) => JSON.stringify([collaboratorNames(p), t.sources(p), t.layerNames(p)]);
+      check('2.26', res.status === 200 && order(stored) === order(sent), `200 and ${order(sent)} expected, got ${res.status}, ${order(stored)}`);
     }));
 
     it('owner: a save whose filesLoaded.count differs from the stored count keeps the stored files list, and saves its other changes (2.21)', runCase('save', async (check) => {

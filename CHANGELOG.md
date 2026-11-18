@@ -1,5 +1,81 @@
 # Changelog
 
+## 1.19.0 — 2026-11
+
+### New
+
+- **`keepListsWithoutEditRights(newProject, oldProject, user, { rowKey, oldRows } = {})`**,
+  exported from `require('neuroweblab')` (stage 4, merge M12), in
+  `project/save.js` next to `keepFieldsWithoutFilesEdit`. The rights each
+  list's changes need, both apps' rule (shared suite 2.3, 2.4, 2.26). For
+  `collaborators`, `files` and `annotations`, in that order, against the
+  stored rows (`listOf(oldProject, type)`, `[]` for a missing list) and the
+  user's rights on the stored project (`AccessControlService.hasAccess`):
+  - a longer list needs `add`, a shorter one `remove`;
+  - a list that differs in any other way (a row changed in place, or moved)
+    needs `edit`: the rows sent, mapped by `rowKey[type]`, are not
+    `_.isEqual`, in order, to the comparison rows mapped the same way;
+  - `add` and `remove` imply `edit` (the levels are ordered).
+  A list whose change is not allowed is set back to the stored rows. It
+  returns the lists whose changes were ignored, each once, in list order.
+  - `rowKey`: what a row is compared on, by list (a function of the row); a
+    list without one compares whole rows. A key that is not a function is a
+    `TypeError`.
+  - `oldRows`: the rows to compare with, by list, instead of the stored ones
+    (BrainBox's stored rows sanitised as the body, as given to `sortRows`). A
+    list put back is always the stored one, never `oldRows`.
+  - `newProject` is changed in place. Both apps' validation refuses a
+    document without the three lists before the call, so they aren't checked.
+    A new project (no `oldProject`) is the caller's: both apps skip the call.
+- `AccessControlService.preventUnauthorizedUpdates` stays, unchanged; its
+  JSDoc now says it checks only the lengths.
+- **Suite rule 2.26** (slice 2, save; the next free number, 2.11 being the
+  files' shape): a collaborator with `files: edit`, `collaborators` and
+  `annotations: view` reverses the files and the two layers and swaps two
+  collaborator rows: the collaborators and layers are kept in the stored
+  order and named in "Some changes (on …) were ignored", the files are stored
+  in the new order; a second case checks a collaborator with `edit` stores all
+  three reorders. 2.4 only checked rows changed in place, and is unchanged.
+- The reference app (`test/conformanceSave.js`) uses
+  `keepListsWithoutEditRights` with its `rowKey`, instead of
+  `preventUnauthorizedUpdates` and its own `keepInPlace`. Its variants keep
+  their meaning: `lengthsOnly` (no length checks, only `edit` on a list that
+  differs; fails 2.3, 2.20), `noInPlaceCheck` (only the lengths, i.e.
+  `preventUnauthorizedUpdates`; now fails 2.4 and 2.26), and a new
+  `unorderedRows` (the edit check ignores the order; fails 2.26 only).
+- Unit cases in `project/save.spec.js`, with no database; `test/exports.spec.js`
+  checks the new name.
+- Nothing is renamed or removed; every 1.18.0 export is unchanged.
+
+### What the apps must do
+
+Nothing changes until an app switches (M12b, M12c):
+
+**microdraw** (M12b): in `saveProject`, replace
+`preventUnauthorizedUpdates` and its own `keepListsWithoutEditRights` with
+NWL's `keepListsWithoutEditRights(newProject, oldProject, loggedUser, {
+rowKey: comparableEntry })`, keeping `keepFieldsWithoutFilesEdit` after it.
+The lists stored are the same. One difference, in the message only: microdraw
+names the lists refused for their length first, then those refused for `edit`
+(`_.union`); NWL names them in list order (e.g. "on collaborators,
+annotations" instead of "on annotations, collaborators" when a layer is added
+without `add` and a collaborator row changed without `edit`). A stored project
+without one of the lists was a `TypeError` in `preventUnauthorizedUpdates`; it
+is now `[]`.
+
+**BrainBox** (M12c): in `postProject`, replace the loop with
+`keepListsWithoutEditRights(object, oldProject, loggedUser, { rowKey,
+oldRows: oldLists })` (`rowKey` from `project-rows.js`; `listChanged` is then
+unused there). No change in behaviour: same order, same comparison, same
+lists put back; a stored project without one of the lists, a `TypeError`
+before, is now `[]`.
+
+**Suite rule 2.26:** both apps pass both cases on their current code
+(microdraw f96b471: 1286 mocha and 378 e2e passing; BrainBox bb1f529: 1740
+passing, 6 pending). Both compare the lists in order (microdraw's
+`comparableEntry` with `_.isEqual`, BrainBox's `listChanged`), so a move
+without `edit` is already kept as stored and named.
+
 ## 1.18.0 — 2026-11
 
 ### New

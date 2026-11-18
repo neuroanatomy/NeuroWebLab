@@ -5,7 +5,7 @@
  * suite catches it.
  */
 const {
-  AccessControlService: ACS, AccessLevel, canSaveProject, ignoredChangesMessage, filesListIncomplete, keepFieldsWithoutFilesEdit, saveRefusal
+  AccessControlService: ACS, AccessLevel, canSaveProject, ignoredChangesMessage, filesListIncomplete, keepFieldsWithoutFilesEdit, keepListsWithoutEditRights, saveRefusal
 } = require('../index');
 
 const LIST_TYPES = ['files', 'collaborators', 'annotations'];
@@ -129,10 +129,16 @@ const rules = (broken) => {
     return missing.length > 0 ? { error: `unknown users: ${missing.join(', ')}` } : { doc };
   };
 
-  /* Lists changed in place keep their stored version without `edit` on them (2.4) */
-  const keepInPlace = (doc, old, who) => LIST_TYPES.filter((type) => {
-    const changed = doc[type].list.map(rowKey[type]).join() !== old[type].list.map(rowKey[type]).join();
-    if (changed && !broken.noInPlaceCheck && !ACS.hasAccess(type, AccessLevel.EDIT, old, who)) {
+  /*
+   * The rights each list's changes need (2.3, 2.4, 2.26): NWL's keepListsWithoutEditRights
+   * (1.19.0), with the rowKey above. Each variant drops one part of the rule:
+   * - lengthsOnly: no length check, only `edit` on a list that differs (in order);
+   * - noInPlaceCheck: only the lengths (NWL's preventUnauthorizedUpdates);
+   * - unorderedRows: the lengths, and `edit` on a list that differs ignoring the order.
+   */
+  const keepChanged = (doc, old, who, { unordered = false } = {}) => LIST_TYPES.filter((type) => {
+    const keys = (rows) => (unordered ? rows.map(rowKey[type]).sort() : rows.map(rowKey[type])).join();
+    if (keys(doc[type].list) !== keys(old[type].list) && !ACS.hasAccess(type, AccessLevel.EDIT, old, who)) {
       doc[type].list = old[type].list;
 
       return true;
@@ -140,8 +146,21 @@ const rules = (broken) => {
 
     return false;
   });
+  const keepLists = (doc, old, who) => {
+    if (broken.lengthsOnly) {
+      return keepChanged(doc, old, who);
+    }
+    if (broken.noInPlaceCheck) {
+      return ACS.preventUnauthorizedUpdates(doc, old, who);
+    }
+    if (broken.unorderedRows) {
+      return [...ACS.preventUnauthorizedUpdates(doc, old, who), ...keepChanged(doc, old, who, { unordered: true })];
+    }
 
-  return { checkDocument, keepInPlace, sanitize };
+    return keepListsWithoutEditRights(doc, old, who, { rowKey });
+  };
+
+  return { checkDocument, keepLists, sanitize };
 };
 
 /* The fields of a stored version a new version starts from (2.17) */
@@ -161,7 +180,7 @@ const storedFields = (stored) => {
  * @returns {function} An async express handler
  */
 const saveHandler = (store, broken, userExists) => {
-  const { checkDocument, keepInPlace, sanitize } = rules(broken);
+  const { checkDocument, keepLists, sanitize } = rules(broken);
   let queue = Promise.resolve();
   // one save at a time (2.20)
   const locked = (fn) => {
@@ -189,7 +208,7 @@ const saveHandler = (store, broken, userExists) => {
     delete doc.filesLoaded;
     const ignored = [];
     if (old) {
-      ignored.push(...(broken.lengthsOnly ? [] : ACS.preventUnauthorizedUpdates(doc, old, who)), ...keepInPlace(doc, old, who));
+      ignored.push(...keepLists(doc, old, who));
       // the project's own fields need files edit (2.2); `fieldsUnchecked`: stored whatever the rights
       if (!broken.fieldsUnchecked) {
         ignored.push(...keepFieldsWithoutFilesEdit(doc, old, who, { sanitize }));

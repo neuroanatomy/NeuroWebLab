@@ -102,6 +102,9 @@ module.exports = class AccessControlService {
 
   /**
    * Check if user can update a project given his rights and modify newProject accordingly.
+   * It checks only the lengths of the lists (a longer list needs add, a shorter one remove):
+   * keepListsWithoutEditRights (project/save.js, 1.19.0) is the whole rule, with the rows
+   * changed in place or moved, which need edit.
    * @param {Object} newProject The project to check
    * @param {Object} oldProject The original project to check against
    * @param {String} userID The user identifier
