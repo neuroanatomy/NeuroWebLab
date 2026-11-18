@@ -7,6 +7,7 @@ const projectSave = require('../project/save');
 const projectRules = require('../project/rules');
 const projectVisible = require('../project/visible');
 const projectVersions = require('../project/versions');
+const projectLock = require('../project/lock');
 const admin = require('../admin');
 const adminAdmins = require('../admin/admins');
 const adminActions = require('../admin/actions');
@@ -228,5 +229,23 @@ describe('root exports, 1.17.0', () => {
     for (const name of ['CURRENT', 'NEWEST_FIRST']) {
       assert.exists(nwl[name], name);
     }
+  });
+});
+
+// 1.18.0
+describe('root exports, 1.18.0', () => {
+  it('1.18.0: withLock, isLocked, projectKey and withProjectLock are exported, as the module that holds them', () => {
+    for (const name of ['withLock', 'isLocked', 'projectKey', 'withProjectLock']) {
+      assert.isFunction(nwl[name], name);
+      assert.strictEqual(nwl[name], project[name], name);
+      assert.strictEqual(nwl[name], projectLock[name], name);
+    }
+  });
+
+  it('every 1.17.0 export is still there', () => {
+    for (const name of ['projectFilesRoute', 'projectListRoute']) {
+      assert.isFunction(nwl[name], name);
+    }
+    assert.exists(nwl.PROJECTS_PER_PAGE);
   });
 });

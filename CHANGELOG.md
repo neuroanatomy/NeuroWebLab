@@ -1,5 +1,68 @@
 # Changelog
 
+## 1.18.0 — 2026-11
+
+### New
+
+- **The project lock, exported from `require('neuroweblab')`** (stage 4,
+  merge M11), in `project/lock.js`. microdraw's
+  `app/controller/projectLock.js` is the reference: one FIFO queue per key,
+  in a `Map` of the module; here a holder may take several keys.
+  - `withLock(keys, fn)`: `keys` a non-empty string or a non-empty array of
+    them. Runs `fn` (sync or async, called with no argument) once every
+    earlier holder of each key has finished, FIFO per key; resolves with what
+    `fn` returns, rejects with what it throws (every key released). Several
+    keys: duplicates dropped, sorted, taken one after the other, each in its
+    own queue, so `['a','b']` and `['b','a']` never deadlock; a holder of
+    `['project','mri']` excludes one of `'mri'` alone and the other way
+    round; released in the reverse order. A non-string key, an empty string
+    or an empty array rejects with a `TypeError` naming it, without calling
+    `fn`. No timeout, no limit on waiting holders.
+  - `isLocked(key)`: whether someone holds or waits for `key` (mainly for
+    tests); false once all is done (a key's entry is deleted when its last
+    holder leaves).
+  - `projectKey(shortname)`: `` `project:${shortname}` ``.
+  - `withProjectLock(shortname, fn)`: `withLock(projectKey(shortname), fn)`.
+  - The lock covers one process, and needs a single copy of `neuroweblab`
+    per app (`npm ls neuroweblab` shows one in both apps today).
+- Unit spec `project/lock.spec.js`, with no database; `test/exports.spec.js`
+  checks the new names. No new conformance cases: the lock isn't visible
+  from HTTP beyond 2.20, which both apps pass.
+- Nothing is renamed or removed; every 1.17.0 export is unchanged.
+
+### What the apps must do
+
+Nothing changes until an app switches (M11b, M11c):
+
+**microdraw** (M11b): `app/controller/projectLock.js` re-exports
+`withProjectLock` and `projectKey`, with `acquire = withLock` and
+`isProjectLocked = (s) => isLocked(projectKey(s))`. Its callers and tests
+keep the same names. No change in behaviour.
+
+**BrainBox** (M11c): `controller/projectLock.js` exports `{ acquire:
+withLock }`, so `lock.acquire(['project', 'mri'], async function () {…})`
+keeps working (its four call sites pass a promise-returning function with no
+`done` argument and no options). Differences from async-lock 1.4.1:
+- async-lock takes an array's keys in the order given (nested acquires);
+  NWL sorts them (`mri` before `project`) and drops duplicates (async-lock
+  deadlocks on `['a','a']`). With one lock instance and always the same
+  array, nothing changes for BrainBox.
+- async-lock's `maxPending` defaults to 1000 per key: the 1001st waiter is
+  rejected with `Too many pending tasks in queue <key>`. NWL has no limit.
+  BrainBox's global `project` key would have hit it only with 1000 saves,
+  deletes or admin fixes waiting at once; none of its tests rely on it.
+  `timeout`, `maxOccupationTime` and `maxExecutionTime` default to 0 (never)
+  in async-lock too, so there is no difference there.
+- async-lock calls a `fn` of one argument with a `done` callback, and takes
+  options (`timeout`, `skipQueue`, …); an empty array runs `fn` without a
+  lock. NWL has none of these: an empty array is a `TypeError`.
+- On rejection both reject with `fn`'s error and release every key.
+- `isBusy()` becomes `isLocked(key)` (BrainBox doesn't call it).
+
+BrainBox's four other `new AsyncLock()` instances (`admin.annotations.js`,
+`atlasmakerServer.js`, `mri.controller.js`, `upload.controller.js`) stay for
+now (decision D3), with the `async-lock` dependency.
+
 ## 1.17.0 — 2026-11
 
 ### New

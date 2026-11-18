@@ -93,7 +93,8 @@ module.exports = {
   // 1.10.0: validation helpers (project/rules.js);
   // 1.14.0: visibleProject, isAnyoneRow, collaboratorKey (project/visible.js);
   // 1.16.0: CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion
-  // (project/versions.js)
+  // (project/versions.js);
+  // 1.18.0: withLock, isLocked, projectKey, withProjectLock (project/lock.js)
   ...project,
   // 1.11.0: admin access (admin/)
   ...admin,
