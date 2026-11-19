@@ -1,5 +1,115 @@
 # Changelog
 
+## 1.22.0 — 2026-11
+
+### New
+
+Exported from `require('neuroweblab')` (stage 4, merge M15a, decision D5
+option B: one shared handler, the rows and the answer's key the app's).
+
+- **`userProjectsRoute({ db, canView, rows, answer })`** (`routes/userProjects.js`),
+  `GET /user/json/:userName/projects?[start][&length]`, shaped as
+  `projectFilesRoute` (1.17.0): a missing adapter function is a `TypeError`
+  naming it, at start-up; any rejected read or hook goes to `next(err)`, so the
+  app's `errorHandler` answers it (a 500 `{error}`). In this order:
+  - one read on the configured `projectsCollection`, current versions only
+    (`CURRENT`): the user is the `owner`, or a collaborator row names them by
+    `userID`, `username` or `nickname` (BrainBox's `$or`). The collection's
+    natural order, unsorted, as both apps today (both user pages sort in the
+    browser);
+  - `canView(req, project)` (may return a promise), then sliced: `length` from
+    `start`, both optional (no `start` from the first, no `length` all). A
+    value that is not a string of decimal digits (`abc`, `-1`, `1.5`, empty,
+    an array) counts as not given; past the end, an empty page;
+  - `res.json(answer(await rows(req, page)))`: `rows` gets the whole page (so
+    microdraw reads the newest annotations of the page in one query) and may
+    return a promise; `answer(list)` is the answer's object, sent as is.
+  - An unknown user has no projects: the answer of an empty list.
+- **`publicUser(doc, usernameField)`** (`user/publicUser.js`): a new object
+  with the username field and **`PUBLIC_USER_FIELDS`** (`['name', 'avatarURL',
+  'url', 'joined']`, frozen), only those `doc` has as its own properties
+  (BrainBox's `hasOwnProperty`). `usernameField` defaults to the configured
+  one. `{}` for a non-object, never a throw. An allow-list: `passhash`,
+  tokens, `email`, `strategy` and any field added later stay private.
+- **`publicLoggedUser(reqUser, usernameField)`**: BrainBox's; `null` logged
+  out, else `publicUser` plus `username`.
+
+### What the apps must do
+
+- **microdraw** (M15b):
+  - `userProjectsRoute({ db: (req) => req.appConfig.db.nativeMongoDB(),
+    canView: (req, p) => AccessControlService.canViewFiles(p, visitor(req) || 'anyone'),
+    rows: async (req, page) => { annotated = await newestAnnotations(db, page.map((p) => p.shortname));
+    return page.map((p) => projectRow(p, visitor(req) || 'anyone', annotated)); },
+    answer: (list) => ({ successful: true, list }) })`. `userProjectsPage`,
+    `queryInt` and `api_userProjects` go; `findUserProjects` stays (`userTabs.js` reads it).
+  - `publicUser(doc)` (its `usernameField` is `username`) in place of its own
+    `publicUserFields`/`publicUser`. `publicLoggedUser` is not needed: the user
+    page sends `req.user || null`, and the session user is already reduced by
+    NWL (`auth/sessionUser.js`: `username`, `name`, `avatarURL`, `url`,
+    `joined`), the same fields; it may use it as a guard.
+- **BrainBox** (M15c):
+  - `userProjectsRoute({ db: (req) => req.nativeDb,
+    canView: (req, p) => BrainboxAccessControlService.hasFilesAccess(AccessLevel.VIEW, p, visitor(req) || 'anonymous'),
+    rows: (req, page) => page.map(…its row…), answer: (list) => ({ success: list.length > 0, list }) })`.
+    `getUserProjectsSlice` and `sliceOf` (if unused elsewhere) go. Its row
+    reads `o.files.list.length`: a project without a files list fails the
+    whole listing (today a 200 `{success: false, list: []}`, a 500 after the
+    switch); count it as 0, as microdraw does.
+  - `publicUser`, `publicLoggedUser` from NWL (its `usernameField` is
+    `nickname`). NWL's `PUBLIC_USER_FIELDS` has no username field: `apiUser`'s
+    `?var=` check (`PUBLIC_USER_FIELDS.includes(field)`) must take
+    `['nickname', ...PUBLIC_USER_FIELDS]`, or `?var=nickname` answers `null`.
+
+### What changes for each app, once it uses the factory
+
+| Case | microdraw today | BrainBox today | 1.22.0 |
+|---|---|---|---|
+| error (a failed read or rows) | 500 `{successful: false, list: []}` | **200** `{success: false, list: []}` | the errorHandler's 500 `{error: 'Server error'}` |
+| a row naming the user by `nickname` only | not listed | listed | listed |
+| `length=` (empty) | 0: an empty list | all | all |
+| `start` or `length` `1.5`, `3abc` | the default | `parseInt`: 1, 3 | the default |
+| `3.0`, `1e1`, `0x10`, ` 3` | `Number`: 3, 10, 16, 3 | 3, 1, 0, 3 | the default |
+| `abc`, `-1` | the default | the default | the default |
+| keys, rows, order | unchanged | unchanged | unchanged |
+
+The user pages after an error: microdraw's (`user-page.js`) reads
+`res.successful`, undefined, so it stops loading quietly, as before.
+BrainBox's reads `res.success & (res.list.length > 0)`: `res.list` is
+undefined, so the page's `fetchProjects` throws (an unhandled rejection in the
+console) and stops; the rows already loaded stay, as before. `&&` there
+would stop quietly.
+
+`publicUser` for microdraw: an inherited field is no longer copied, and a
+non-object gives `{}` instead of a throw. A stored `null` is kept, as before.
+An own `undefined` is now kept as a key, where microdraw skipped it, but
+`res.json` and `jsonForScript` drop it: no answer changes (MongoDB stores no
+`undefined`). BrainBox: unchanged.
+
+### The suite
+
+- **3.16**: a project with a row naming the user by `nickname` only is listed
+  (a new project of the slice, `unick`). microdraw fails it until M15b.
+- **3.17**: `start` at or past the end gives an empty list (`start=4&length=3`,
+  `start=100`), a `length` past the end the rest.
+- **3.18**: a `start` or `length` that is not a string of digits (`abc`, `-1`,
+  `1.5`, empty) counts as not given. BrainBox fails it until M15c (`1.5` is
+  1), microdraw until M15b (`length=` is 0).
+- **3.19**: `GET /user/json/:u` (new route `user`), anonymous and the user
+  themself: an object, the username and the name, no field outside
+  `username`, `nickname`, `name`, `avatarURL`, `url`, `joined`, no email
+  (stored by `setUserFields`). 3.7 checked the user search only.
+- The reference app builds its `/user/json/:userName/projects` with the
+  factory (`test/conformanceUserProjects.js`), over its store as a Db stub
+  that now answers `find` (`test/conformanceAccess.js`). Its variants:
+  `userIDOnly` (3.3) and the new `noNickname` (3.16) are keys the stub's find
+  never matches; `sliceBeforeFilter` makes the stub page by the query before
+  the factory filters (it now also fails 3.17 and 3.18); `rangeRequired`
+  answers before the factory; `hiddenCollaboratorsCounted` and `noModified`
+  (3.5) are in `rows`. New: `noListWhenEmpty` (`answer` without a list, 3.17
+  and 3.5), `nonNumericAsZero` (3.18, the query rewritten before the
+  factory), `userDocumentExposed` (3.19, the whole user document).
+
 ## 1.21.0 — 2026-11
 
 ### New

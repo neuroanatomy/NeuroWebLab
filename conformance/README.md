@@ -83,7 +83,7 @@ The two adapters in use are in the coordination folder,
 Each check belongs to a rule, named by its row in the feature map
 (coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `1.17` … `1.19`, `2.1`,
 `2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.33` (slice 2, but 2.11),
-`3.1` … `3.8`, `3.11` … `3.15` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
+`3.1` … `3.8`, `3.11` … `3.19` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
 `5.4` (slice 5); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is
 `RULES`. A case whose failing checks are all declared is reported as pending,
@@ -138,7 +138,7 @@ A field it lacks fails the cases that need it, naming the field.
 `projectListings(adapter)`, with the same adapter. The rules are the ones
 the maintainer approved on 2026-11-11 (coordination
 `tasks/proposed-shared-pm-tests.md`, "Slice 3: rules for the differing
-rows"). The slice signs up 11 users and stores 69 projects (directly, by
+rows"). The slice signs up 11 users and stores 70 projects (directly, by
 `insertProject`, in an order that mixes the hidden ones in; one over HTTP
 for `modified`):
 
@@ -177,6 +177,16 @@ for `modified`):
 - the listing's `page` (3.15, since 1.17.0), as the anonymous visitor:
   `page=abc` and `page=-1` give page 0; no `page` gives 200 with an `error`
   key (the text isn't checked).
+- a user's projects, since NeuroWebLab 1.22.0 (`userProjectsRoute`):
+  - 3.16 a row naming the user by `nickname` only is listed;
+  - 3.17 as the anonymous visitor, `start` at or past the end gives an
+    empty list, a `length` past the end the rest;
+  - 3.18 a `start` or `length` that is not a string of digits (`abc`, `-1`,
+    `1.5`, empty) counts as not given: the same rows as without it;
+- a user (3.19, since 1.22.0, route `user`, default `/user/json/:u`),
+  anonymous and the user themself: an object with the username and the name,
+  no field outside `username`, `nickname`, `name`, `avatarURL`, `url`,
+  `joined` (NWL's `publicUser`), no email (stored by `setUserFields`).
 
 Not in the slice: 3.9, 3.10 (app-specific), and the new-project "is this
 shortname taken?" check of 3.6 (BrainBox's is over the WebSocket).
@@ -194,7 +204,8 @@ What it needs from the app, besides slices 1 and 2's fields:
 - `routes`: `searchProjects` (default microdraw's
   `/search/json/projects?q=:q`), `searchUsers` (default BrainBox's
   `/api/userNameQuery?q=:q`), `userProjectsAll`, `userProjectsRange`,
-  `filesPaged` (3.11-3.14, default `/project/json/:p/files`).
+  `filesPaged` (3.11-3.14, default `/project/json/:p/files`), `user` (3.19,
+  default `/user/json/:u`).
 
 ## Slice 4: annotations by project
 
@@ -298,13 +309,14 @@ is `test/conformanceSave.js`, the approved rules), then on 26 variants, each
 turning one rule off (owner from the client, stored fields lost, invalid
 document 500, …): each makes its rule fail, and no other rule outside the
 ones it breaks. `conformance/projectListings.spec.js` does the same for
-slice 3 with 17 variants (page before filtering, a row by `userID` only,
+slice 3 with 21 variants (page before filtering, a row by `userID` only,
 `start`/`length` required, sliced before filtering, hidden collaborators
 counted, no `modified`, private projects in search, user search by
 username only, an email in user search, regex search text, a non-string
 `q` accepted, files counted from 1, `start`/`length` not clamped,
 `names=true` answering the sources, the files' `start`/`length` optional,
-`Number(page)`, no `page` read as page 0), a missing route, and a rule two slices check. `conformance/projectAnnotations.spec.js`
+`Number(page)`, no `page` read as page 0, no `nickname` rows, no list when
+empty, a non-numeric `start`/`length` read as 0, the whole user document), a missing route, and a rule two slices check. `conformance/projectAnnotations.spec.js`
 does it for slice 4 (`test/conformanceAnnotations.js`) with 8 variants (the
 highest level instead of the own row, a logged-out write accepted, a refused
 write that still stores, reads not checked, reads needing edit, writes not

@@ -18,6 +18,7 @@ const { escapeRegex } = require('../db/escapeRegex');
 const { annotationWriteHandler, mayAnnotate } = require('./conformanceAnnotations');
 const { filesSlice, listHandler } = require('./conformancePaging');
 const { refusalVariants, storeDb } = require('./conformanceAccess');
+const { addUserRoutes } = require('./conformanceUserProjects');
 
 const isAnyone = (c) => c.userID === 'anyone' || c.username === 'anyone';
 const { VIEW } = AccessLevel;
@@ -95,40 +96,6 @@ const makeStore = (broken) => {
   };
 
   return store;
-};
-
-/**
- * A user's projects (3.3-3.5): owned or a row by `userID` or `username`, then
- * `files: view`; `start`/`length` optional, sliced after filtering; counts of
- * what the visitor may see
- * @param {object} store The store
- * @param {object} broken The rules turned off
- * @param {function(object): string} who The visitor of a request
- * @returns {function} The handler
- */
-const userProjectsHandler = (store, broken, who) => (req, res) => {
-  const { u } = req.params;
-  const { start, length } = req.query;
-  if (broken.rangeRequired && (typeof start === 'undefined' || typeof length === 'undefined')) {
-    return res.status(403).json({ error: 'Provide start and length' });
-  }
-  const from = typeof start === 'undefined' ? 0 : Number(start);
-  const to = typeof length === 'undefined' ? Infinity : from + Number(length);
-  const isMember = (c) => c.userID === u || (!broken.userIDOnly && c.username === u);
-  let list = store.listed().filter((p) => p.owner === u || p.collaborators.list.some(isMember));
-  const visible = (projects) => projects.filter((p) => ACS.canViewFiles(p, who(req)));
-  list = broken.sliceBeforeFilter ? visible(list.slice(from, to)) : visible(list).slice(from, to);
-  res.json({
-    success: list.length > 0,
-    list: list.map((p) => ({
-      project: p.shortname,
-      projectName: p.name,
-      owner: p.owner,
-      numFiles: p.files.list.length,
-      numCollaborators: (broken.hiddenCollaboratorsCounted ? p : projectForUser(p, who(req), broken)).collaborators.list.length,
-      ...(broken.noModified ? {} : { modified: p.modified })
-    }))
-  });
 };
 
 /* The search text, or a 400 answer (3.8); `regexSearch`: not escaped */
@@ -270,7 +237,7 @@ const addProjectRoutes = (app, broken, userExists, findUsers) => {
     }),
     render: (req, res, p) => res.send(page('project', { ...projectForUser(p, who(req), broken), files: { list: [] } }))
   }));
-  app.get('/user/json/:u/projects', userProjectsHandler(store, broken, who));
+  addUserRoutes(app, { store, broken, who, findUsers, projectForUser });
   app.get('/search/json/projects', projectSearchHandler(store, broken, who));
   app.get('/api/userNameQuery', userSearchHandler(broken, findUsers));
 

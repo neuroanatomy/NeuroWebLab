@@ -3,12 +3,20 @@
  * owned, or a row naming the user by `username` or `userID`, then `files:
  * view` for the visitor (3.3); `start`/`length` optional, filtered, then
  * sliced (3.4); the rows: counts of what the visitor may see, `modified`, an
- * empty list when there is none (3.5).
+ * empty list when there is none (3.5). Since NeuroWebLab 1.22.0: a row
+ * naming the user by `nickname` only (3.16); `start` or `length` past the
+ * end (3.17); a `start` or `length` that is not a string of digits counts as
+ * not given (3.18); `GET /user/json/:u` answers only the public fields
+ * (3.19).
  */
+
+// what GET /user/json/:u may answer (NWL's publicUser: the username field and PUBLIC_USER_FIELDS)
+const PUBLIC_KEYS = ['username', 'nickname', 'name', 'avatarURL', 'url', 'joined'];
+const EMAIL_DOMAIN = '@conformance.example';
 
 // eslint-disable-next-line max-lines-per-function, max-statements
 module.exports = (t) => {
-  const { describe, it, runCase, R } = t;
+  const { describe, it, before, runCase, R } = t;
   const OUTSIDER = { key: 'outsider', via: 'session' };
   const MEMBER = { key: 'member', via: 'session' };
   const OWNER = { key: 'owner', via: 'session' };
@@ -46,6 +54,9 @@ module.exports = (t) => {
         check('3.3', found === expected, expected ? 'not listed' : 'listed');
       }));
     }
+    it('logged-in non-member, the member\'s projects: a project with a row naming the user by nickname only is listed (3.16)', runCase('userProjects', async (check) => {
+      check('3.16', await listed(check, '3.16', OUTSIDER, 'member', 'unick'), 'not listed');
+    }));
     it('logged-in non-member, the member\'s projects: a project only its members may view is not listed (3.3)', runCase('userProjects', async (check) => {
       check('3.3', !await listed(check, '3.3', OUTSIDER, 'member', 'priv0'), 'listed');
     }));
@@ -99,5 +110,63 @@ module.exports = (t) => {
       const { res, rows } = await t.userProjects(OUTSIDER, 'outsider');
       check('3.5', Array.isArray(rows) && rows.length === 0, `an empty list expected, got ${t.what(res)}`);
     }));
+  });
+
+  describe(`GET ${R.userProjectsRange}: past the end (3.17), and a start or length that is not a count (3.18)`, function () {
+    // pager's projects: 4 the anonymous visitor may view
+    const range = (start, length) => t.userProjects(ANONYMOUS, 'pager', 'userProjectsRange', { start, length });
+    const isList = (check, rule, { res, rows }, what) => check(rule, res.status === 200 && Array.isArray(rows), `${what}: 200 and a list expected, got ${t.what(res)}`);
+
+    it('anonymous: a start at or past the end gives an empty list, a length past the end the rest (3.17)', runCase('userProjectsRange', async (check) => {
+      for (const [start, length, expected] of [['4', '3', 0], ['100', '3', 0], ['100', '0', 0], ['3', '100', 1]]) {
+        // eslint-disable-next-line no-await-in-loop
+        const got = await range(start, length);
+        isList(check, '3.17', got, `start=${start}&length=${length}`);
+        const n = (got.rows || []).length;
+        check('3.17', n === expected, `start=${start}&length=${length}: ${expected} expected, got ${n}`);
+      }
+    }));
+
+    it('anonymous: a start that is not a string of digits (abc, -1, 1.5, empty) counts as not given (3.18)', runCase('userProjectsRange', async (check) => {
+      const first = t.names((await range('0', '2')).rows);
+      for (const start of ['abc', '-1', '1.5', '']) {
+        // eslint-disable-next-line no-await-in-loop
+        const got = await range(start, '2');
+        isList(check, '3.18', got, `start=${start}`);
+        const names = t.names(got.rows);
+        check('3.18', names.length === 2 && JSON.stringify(names) === JSON.stringify(first), `start=${start}&length=2: the first 2 (${first.join(', ')}) expected, got ${names.join(', ')}`);
+      }
+    }));
+
+    it('anonymous: a length that is not a string of digits (abc, -1, 1.5, empty) counts as not given (3.18)', runCase('userProjectsRange', async (check) => {
+      const rest = t.names((await range('1', '100')).rows);
+      for (const length of ['abc', '-1', '1.5', '']) {
+        // eslint-disable-next-line no-await-in-loop
+        const got = await range('1', length);
+        isList(check, '3.18', got, `length=${length}`);
+        const names = t.names(got.rows);
+        check('3.18', names.length === 3 && JSON.stringify(names) === JSON.stringify(rest), `start=1&length=${length}: the 3 after the first (${rest.join(', ')}) expected, got ${names.join(', ')}`);
+      }
+    }));
+  });
+
+  describe(`GET ${R.user}: only the public fields (3.19)`, function () {
+    before(async function () {
+      await t.adapter.setUserFields(t.name('member'), { name: `Member ${t.prefix}`, email: `${t.name('member')}${EMAIL_DOMAIN}` });
+    });
+
+    for (const [role, visitor] of [['anonymous', ANONYMOUS], ['the user themself', MEMBER]]) {
+      it(`${role}: the user, with their name, and no field outside the allow-list (3.19)`, runCase('user', async (check) => {
+        const { res, body } = await t.get(visitor, t.fill('user', { u: t.name('member') }));
+        const ok = res.status === 200 && body !== null && typeof body === 'object' && !Array.isArray(body);
+        check('3.19', ok, `200 and an object expected, got ${t.what(res)}`);
+        if (ok) {
+          const extra = Object.keys(body).filter((k) => !PUBLIC_KEYS.includes(k));
+          check('3.19', extra.length === 0, `fields outside the allow-list: ${extra.join(', ')}`);
+          check('3.19', (body.username || body.nickname) === t.name('member') && body.name === `Member ${t.prefix}`, `the username and the name expected, got keys ${Object.keys(body).join(', ')}`);
+        }
+        check('3.19', !res.text.includes(EMAIL_DOMAIN), 'an email is in the answer');
+      }));
+    }
   });
 };

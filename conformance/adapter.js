@@ -103,6 +103,8 @@ const defaultRoutes = {
   newProject: '/project/new',
   userProjectsAll: '/user/json/:u/projects',
   userProjectsRange: '/user/json/:u/projects?start=:start&length=:length',
+  // slice 3 (3.19, NeuroWebLab 1.22.0): a user, as others may see them
+  user: '/user/json/:u',
   searchProjects: '/search/json/projects?q=:q',
   searchUsers: '/api/userNameQuery?q=:q'
 };

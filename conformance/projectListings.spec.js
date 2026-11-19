@@ -16,7 +16,7 @@ const VARIANTS = [
   ['pageBeforeFilter', ['3.2']],
   ['userIDOnly', ['3.3']],
   ['rangeRequired', ['3.4']],
-  ['sliceBeforeFilter', ['3.4']],
+  ['sliceBeforeFilter', ['3.4', '3.17', '3.18']],
   ['hiddenCollaboratorsCounted', ['3.5']],
   ['noModified', ['3.5']],
   ['privateInSearch', ['3.6']],
@@ -29,7 +29,11 @@ const VARIANTS = [
   ['namesAsStrings', ['3.13']],
   ['filesRangeOptional', ['3.14']],
   ['pageNaN', ['3.15']],
-  ['noPageError', ['3.15']]
+  ['noPageError', ['3.15']],
+  ['noNickname', ['3.16']],
+  ['noListWhenEmpty', ['3.17', '3.5']],
+  ['nonNumericAsZero', ['3.18']],
+  ['userDocumentExposed', ['3.19']]
 ];
 
 describe('conformance: slice 3 on an app that follows the approved rules', function () {

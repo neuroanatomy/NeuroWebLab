@@ -19,7 +19,10 @@ const LIFECYCLE_RULES = [
 ];
 
 /** Slice 3's rules (projectListings.js) */
-const LISTING_RULES = ['3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.11', '3.12', '3.13', '3.14', '3.15'];
+const LISTING_RULES = [
+  '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.11', '3.12', '3.13', '3.14', '3.15',
+  '3.16', '3.17', '3.18', '3.19'
+];
 
 /** Slice 4's rules (projectAnnotations.js) */
 const ANNOTATION_RULES = ['4.1', '4.2', '4.3', '4.4'];

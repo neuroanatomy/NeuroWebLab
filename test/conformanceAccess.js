@@ -1,7 +1,8 @@
 /**
  * What the reference app (test/conformanceApp.js) puts around NeuroWebLab's
- * project route factories (1.21.0, routes/projectAccess.js): its store as
- * the Db they read, and the `broken` variants they cannot answer themselves.
+ * project route factories (1.21.0, routes/projectAccess.js; 1.22.0,
+ * routes/userProjects.js): its store as the Db they read, and the `broken`
+ * variants they cannot answer themselves.
  */
 
 const NO_VIEW = 'Not authorized to view project';
@@ -33,18 +34,84 @@ const refusalVariants = (broken) => (req, res, next) => {
 };
 
 /**
- * The store as the native Db the factories read (findCurrentProject's findOne)
+ * The value of a dotted path, through arrays as MongoDB does: every value
+ * reached (`collaborators.list.username` gives each row's)
+ * @param {*} value A document
+ * @param {Array<string>} keys The path's keys
+ * @returns {Array} The values reached
+ */
+const valuesAt = (value, keys) => {
+  if (Array.isArray(value)) {
+    return value.flatMap((v) => valuesAt(v, keys));
+  }
+  if (keys.length === 0) {
+    return [value];
+  }
+  if (value === null || typeof value !== 'object' || !Object.hasOwn(value, keys[0])) {
+    return [];
+  }
+
+  return valuesAt(value[keys[0]], keys.slice(1));
+};
+
+/**
+ * Whether a document matches a filter of the kind the factories make:
+ * `$or` and equality on dotted paths; a key of `ignored`
+ * never matches (a store that does not look there)
+ * @param {object} doc A document
+ * @param {object} filter The filter
+ * @param {Array<string>} ignored Keys that never match
+ * @returns {boolean} Whether it matches
+ */
+const matches = (doc, filter, ignored) => Object.entries(filter).every(([key, cond]) => {
+  if (key === '$or') {
+    return cond.some((branch) => matches(doc, branch, ignored));
+  }
+  if (ignored.includes(key)) {
+    return false;
+  }
+
+  return valuesAt(doc, key.split('.')).includes(cond);
+});
+
+/**
+ * A `start` or `length` read as the store's own paging would (sliceBeforeFilter)
+ * @param {*} value The query value
+ * @param {number} fallback When it is not a string of digits
+ * @returns {number} The number
+ */
+const countOf = (value, fallback) => (typeof value === 'string' && (/^\d+$/).test(value) ? Number(value) : fallback);
+
+/**
+ * The store as the native Db the factories read (findCurrentProject's
+ * findOne, userProjectsRoute's find)
  * @param {object} store The store
- * @param {object} [options] `failUnknown`: the read of an unknown project rejects
+ * @param {object} [options] `failUnknown`: the read of an unknown project
+ *   rejects; `ignored`: filter keys the find never matches (`userIDOnly`,
+ *   `noNickname`); `range`: a query whose `start`/`length` the find pages
+ *   with, before the factory filters (`sliceBeforeFilter`)
  * @returns {object} A Db stub
  */
-const storeDb = (store, { failUnknown = false } = {}) => ({
+const storeDb = (store, { failUnknown = false, ignored = [], range = null } = {}) => ({
   collection: () => ({
     findOne: ({ shortname }) => {
       const p = store.current(shortname);
 
       return (!p && failUnknown) ? Promise.reject(new Error(`cannot read ${shortname}`)) : Promise.resolve(p || null);
-    }
+    },
+    find: (filter) => ({
+      toArray: () => {
+        // the store says which versions are current (`listBackups`, `noBackupMark`: slice 2's variants), as before 1.22.0
+        const { backup, ...rest } = filter; // eslint-disable-line no-unused-vars
+        const found = store.listed().filter((d) => matches(d, rest, ignored));
+        if (!range) {
+          return Promise.resolve(found);
+        }
+        const from = countOf(range.start, 0);
+
+        return Promise.resolve(found.slice(from, from + countOf(range.length, Infinity)));
+      }
+    })
   })
 });
 

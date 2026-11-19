@@ -5,7 +5,9 @@
  * (coordination `tasks/proposed-shared-pm-tests.md`, "Slice 3: rules for the
  * differing rows"); each case is tagged with its row. Not in the slice: 3.9
  * and 3.10 (app-specific). 3.11-3.15 (NeuroWebLab 1.17.0): paging the files
- * route, and the listing's `page` parameter.
+ * route, and the listing's `page` parameter. 3.16-3.19 (NeuroWebLab 1.22.0):
+ * a user's projects by a `nickname` row, past the end, a `start` or `length`
+ * that is not a count, and a user's public fields.
  */
 const crypto = require('crypto');
 const { parse } = require('./checks');
@@ -25,7 +27,7 @@ const PRIVATE = uniform('none');
 /**
  * The projects of the slice, in the order they are stored: the hidden ones
  * mixed in, so that a listing that pages (or slices) before filtering shows
- * @returns {Array<object>} {key, owner, anyone, rows: {userKey: access}, files, byHTTP, keep: 'userID'|'username'}
+ * @returns {Array<object>} {key, owner, anyone, rows: {userKey: access}, files, byHTTP, keep: 'userID'|'username'|'nickname'}
  */
 // eslint-disable-next-line max-statements -- the plan, in the order it is stored
 const projectPlan = () => {
@@ -43,6 +45,8 @@ const projectPlan = () => {
   add('mown', { owner: 'member' });
   add('uid', { rows: { member: uniform('view') }, keep: 'userID' });
   add('uname', { rows: { member: uniform('view') }, keep: 'username' });
+  // a row by nickname only (3.16)
+  add('unick', { rows: { member: uniform('view') }, keep: 'nickname' });
   // paging a user's projects (3.4): the even ones public
   for (let i = 0; i < 7; i += 1) {
     add(`pg${i}`, { owner: 'pager', anyone: i % 2 === 0 ? PUBLIC : PRIVATE });
@@ -133,9 +137,13 @@ const specOf = (t, p) => ({
 const documentOf = (t, p) => {
   const doc = projectDocument(t.users[p.owner], specOf(t, p), t.adapter.layer);
   if (p.keep) {
-    // the member's row names them by one key only (3.3)
-    const drop = p.keep === 'userID' ? 'username' : 'userID';
-    doc.collaborators.list.filter((c) => c.userID !== 'anyone').forEach((c) => { delete c[drop]; });
+    // the member's row names them by one key only (3.3, 3.16)
+    doc.collaborators.list.filter((c) => c.userID !== 'anyone').forEach((c) => {
+      const { username } = c;
+      delete c.userID;
+      delete c.username;
+      c[p.keep] = username;
+    });
   }
 
   return doc;
