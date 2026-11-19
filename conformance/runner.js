@@ -28,7 +28,7 @@ const LISTING_RULES = [
 const ANNOTATION_RULES = ['4.1', '4.2', '4.3', '4.4'];
 
 /** Slice 5's rules (projectAdmin.js) */
-const ADMIN_RULES = ['5.1', '5.2', '5.4'];
+const ADMIN_RULES = ['5.1', '5.2', '5.4', '5.6', '5.7'];
 
 /** Every rule an adapter may declare (besides `route:<name>`): one adapter serves every slice */
 const RULES = [...new Set([...ACCESS_RULES, ...LIFECYCLE_RULES, ...LISTING_RULES, ...ANNOTATION_RULES, ...ADMIN_RULES])];

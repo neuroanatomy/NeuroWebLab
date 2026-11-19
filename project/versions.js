@@ -14,6 +14,7 @@
  * on `{shortname: 1}`, which each app creates.
  */
 
+const crypto = require('crypto');
 const _ = require('lodash');
 const Configuration = require('../Configuration');
 
@@ -90,4 +91,25 @@ const saveProjectVersion = async (db, doc, { by, keepModified = false, afterSave
   return version;
 };
 
-module.exports = { CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion };
+/**
+ * A token for a stored version of a project (NeuroWebLab 1.23.0, stage 4
+ * merge M16; microdraw's `project.check.js` projectVersion, unchanged: its
+ * admin page holds tokens computed by it). The admin fixes refuse a project
+ * whose token changed since it was listed (decision D6).
+ *
+ * It is a hash of `JSON.stringify(doc)`, so it depends on the order of the
+ * document's keys. A document read from MongoDB has its keys in the order
+ * stored (BSON keeps it, the driver builds the object in that order), so two
+ * reads of the same stored document give the same token, and any write to it
+ * (a new version, a `$set`) changes the document or its `_id`. The token must
+ * be computed on the whole document as `findCurrentProject` reads it: a
+ * projection, or a copy whose keys were added in another order, gives
+ * another token.
+ * @param {object} doc The project document, as read from the database
+ * @returns {string} The first 20 hexadecimal digits of its sha256
+ */
+const projectVersion = (doc) => crypto.createHash('sha256').update(JSON.stringify(doc))
+  .digest('hex')
+  .slice(0, 20);
+
+module.exports = { CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion, projectVersion };

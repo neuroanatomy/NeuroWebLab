@@ -22,10 +22,16 @@ const VARIANTS = [
   ['pageNoPrompt', ['5.2']],
   // the admin change overwrites the current version, no backup
   ['overwriteNoBackup', ['5.4']],
-  // a new version, but the previous one stays current too
-  ['noBackupMark', ['5.4']],
+  // a new version, but the previous one stays current too (the restore of 5.7 stores its version the same way)
+  ['noBackupMark', ['5.4', '5.7']],
   // a new version, but the previous one is changed
-  ['backupChanged', ['5.4']]
+  ['backupChanged', ['5.4']],
+  // 1.23.0: the damaged projects fixes do not check the version token
+  ['noVersionCheck', ['5.6']],
+  // the rows restore-files puts back lose their names
+  ['restoreDropsNames', ['5.7']],
+  // restore-files changes the current version, no new one
+  ['restoreInPlace', ['5.7']]
 ];
 
 describe('conformance: slice 5 on an app that follows the approved rules', function () {
@@ -67,7 +73,8 @@ describe('conformance: slice 5 on an app that follows the approved rules', funct
       const adapter = h.adapter({});
       const { user } = adapter.admin;
       const noRoutes = await h.runNested(projectAdmin, { ...adapter, admin: { user } });
-      assert.deepStrictEqual(noRoutes.failed.map((f) => f.message.match(/adapter\.admin\.\w+/)[0]), ['adapter.admin.routes', 'adapter.admin.changeProject']);
+      // 1.23.0: the two cases of 5.6 need logEntries; the routes and bodies of 5.6 and 5.7 default to microdraw's
+      assert.deepStrictEqual(noRoutes.failed.map((f) => f.message.match(/adapter\.admin\.\w+/)[0]), ['adapter.admin.routes', 'adapter.admin.changeProject', 'adapter.admin.logEntries', 'adapter.admin.logEntries']);
       const noUser = await h.runNested(projectAdmin, { ...adapter, admin: {} });
       assert.strictEqual(noUser.failed.length, 1, JSON.stringify(noUser.failed));
       assert.match(noUser.failed[0].message, /adapter\.admin\.user is needed/);

@@ -88,6 +88,13 @@ const makeStore = (broken) => {
       }
     },
     markDeleted: (p) => of(p).forEach((v) => { v.backup = true; }),
+    // every current version of a project but the newest marked backup (fix-current)
+    markOlderCurrents: (p) => {
+      const newest = current(p);
+      of(p).forEach((v) => { if (v !== newest) { v.backup = true; } });
+    },
+    // the admin log entries (slice 5: 5.6), {key, value: {shortname}}
+    adminLog: [],
     // the project's versions and annotations (the nested runs store the same shortnames again)
     removeAll: (p) => {
       docs = docs.filter((d) => d.shortname !== p);

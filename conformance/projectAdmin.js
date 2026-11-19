@@ -11,7 +11,12 @@
  * - 5.2 the admin page: logged out 401 with the login prompt, a non-admin 403,
  *   an admin 200;
  * - 5.4 an admin change to a project (the adapter's `admin.changeProject`)
- *   stores a new current version and keeps the previous ones as backups.
+ *   stores a new current version and keeps the previous ones as backups;
+ * - 5.6, 5.7 (1.23.0) the damaged projects fixes: a stale version token is a
+ *   409 that stores nothing; a restore-files with the listed token adds the
+ *   missing rows back, with their names, as a new version (adminDamaged.js).
+ *   These cases post to the admin routes: they change only the projects the
+ *   slice stored.
  * Not in the slice: 5.3, 5.5 (app-specific tools); the log and the lock of
  * 5.4 (per app).
  */
@@ -19,6 +24,7 @@ const crypto = require('crypto');
 const { uniform } = require('./matrix');
 const { projectDocument, resolveAdapter } = require('./adapter');
 const { ADMIN_RULES, caseRunner, checkDeclared } = require('./runner');
+const { damagedCases } = require('./adminDamaged');
 
 const METHODS = ['GET', 'POST', 'DELETE'];
 // the login prompt of the page shown to logged-out visitors (both apps' askForLogin: "Log in required")
@@ -147,7 +153,7 @@ const changeCases = (t) => {
 
 /**
  * Define slice 5's mocha blocks
- * @param {object} appAdapter The app's adapter (adapter.js); the slice uses `admin` and, for 5.4, `insertProject` and `versions`
+ * @param {object} appAdapter The app's adapter (adapter.js); the slice uses `admin` and, for 5.4, 5.6 and 5.7, `insertProject`, `versions` and `fileList`
  * @param {object} [options] `mocha`: the interface (default: the globals); `prefix`: of the users' and projects' names (default: random)
  * @returns {void}
  */
@@ -196,6 +202,7 @@ const projectAdmin = (appAdapter, { mocha = global, prefix = `cd${crypto.randomB
     routeCases(t);
     pageCases(t);
     changeCases(t);
+    damagedCases(t);
 
     describe('expected differences', function () {
       stillDiffers(it);

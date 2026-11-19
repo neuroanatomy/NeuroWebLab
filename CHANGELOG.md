@@ -1,5 +1,163 @@
 # Changelog
 
+## 1.23.0 — 2026-11
+
+### New
+
+Exported from `require('neuroweblab')` (stage 4, merge M16a, decision D6
+option A: BrainBox adopts microdraw's version token, then both share the
+analysis; microdraw's `admin.damaged.js` is the reference).
+
+- **`projectVersion(doc)`** (`project/versions.js`): microdraw's token,
+  unchanged (`project.check.js`): the first 20 hex digits of the sha256 of
+  `JSON.stringify(doc)`. In `versions.js`, next to `findCurrentProject`, as
+  it is the token of a stored version and not only of the damaged projects
+  tool: microdraw's invalid-projects tool (A2, `project.check.js`) uses it
+  too, and imports NWL's in M16b. It depends on the order of the keys: a
+  document read back from MongoDB has them in the order stored (BSON keeps
+  it, the driver builds the object in that order), so two reads of the same
+  document give the same token, and any write changes it. It must be
+  computed on the whole document as `findCurrentProject` reads it (a
+  projection, or a copy built in another key order, gives another token).
+- **`damagedProjects(adapter)`** (`admin/damaged.js`) returns
+  `{findDamagedProjects(db), restoreFiles(db, params), fixCurrentVersions(db, params), isIncompleteSave}`,
+  with microdraw's behaviour; `db` is the native MongoDB Db, the projects
+  collection the configured `projectsCollection`. A missing adapter function
+  is a `TypeError` naming it, at start-up. **`BATCH_LENGTH`** (100) and
+  **`EXAMPLES`** (3) are exported too; `admin/damaged.js` also exports the
+  pure helpers (`dateOf`, `isIncompleteSave`, `removedFiles`, `removalEvents`).
+  - The adapter:
+    - `sourcesOf(version)`: the file rows of a version as `{source, name}`
+      (old plain strings as rows); versions are compared by source;
+    - `annotatedFiles(db, shortname, sources)`: `Promise<Set<source>>`, those
+      that have annotations in the project (not called when no file is
+      missing);
+    - `save(db, doc, {by, previous})`: store `doc` as the new version (the
+      app's `saveProjectVersion` with its hooks); `previous` is the current
+      version the fix read;
+    - `lockKeys(shortname)`: the lock's keys (`withLock`);
+    - optional `logger` and `logFields(value)`, passed to `adminLog`.
+  - `findDamagedProjects(db)` → `{list}`, one project at a time, each entry
+    `{shortname, name, owner, version, files, versions, currentVersions: [{id, modified, modifiedBy}], missing, suspected, events: [{save, previous, modified, modifiedBy, before, after, removed, stillMissing, annotated, incomplete, examples}]}`,
+    suspected first, then most missing, then by shortname.
+  - `restoreFiles(db, {shortname, version, save, username})`, under the lock:
+    400 `save` not an id; 404 no current version; 409 several current
+    versions; **409 `version` not the current token** (`Project <p> has
+    changed since it was listed: reload the list`); 404 no such save (or the
+    first version); 409 nothing left to restore. Then the log entry
+    (`adminRestoreProjectFiles`: `username, shortname, before, save, files,
+    project` (the previous document without `_id`)), `save`, and `value.after`
+    set to the new token. Answer `{restored, files, version, log}`. The rows
+    put back follow the current ones, as stored, each with the name it had
+    in the version before the save.
+  - `fixCurrentVersions(db, {shortname, version, username})`, under the lock:
+    404; **409 the newest current version's token is not `version`**; 409 not
+    several; then the others marked `backup`, logged
+    (`adminFixCurrentVersions`: `username, shortname, kept, backups`). Answer
+    `{kept, backups, version, log}`.
+
+No route helper: the three handlers are a few lines each, and the apps'
+differ (body checks and their texts, the Db of the request, the error
+logging). Both apps keep their paths, `requireAdmin` and envelope
+(`{success: true, list}`, `sendResult` for the fixes).
+
+### What the apps must do
+
+- **microdraw** (M16b): `damagedProjects({ sourcesOf: fileRows,
+  annotatedFiles: <its annotations distinct fileID query, splitFileID>,
+  save: (db, doc, { by, previous }) => saveProjectVersion(db, doc, { by, datasetOwner: previous.owner }),
+  lockKeys: (s) => [projectKey(s)], logger, logFields: (v) => _.omit(v, ['project']) })`;
+  its routes pass the native Db (`nativeDb(req)`) to the fixes, not
+  `req.app.db`. `project.check.js` imports NWL's `projectVersion` (the same
+  tokens). Nothing changes for its admin page: keys, bodies, statuses, texts,
+  answers and log entries are its own. `admin.damaged.js` goes but its
+  routes.
+- **BrainBox** (M16c): `damagedProjects({ sourcesOf: (v) => listOf(v, 'files')
+  .map((f) => (isPlainObject(f) ? { source: f.source, name: f.name || '' } : { source: f, name: '' })),
+  annotatedFiles: <its mri query>, save: (db, doc, { by }) => saveProjectVersion(db,
+  { ...doc, files: { ...doc.files, list: doc.files.list.map(fileSource) } }, { by }),
+  lockKeys: () => ['project', 'mri'] })`. BrainBox stores a project's files as
+  sources (strings; a file's name is in its MRI document; its code also reads
+  `{source, name}` rows of old versions), so its `save` keeps storing
+  sources. What changes for it:
+  - the list's entry: `project` → `shortname`; new `owner` and `version`
+    (the token); `currentVersions` a number → a list `[{id, modified,
+    modifiedBy}]`; an event's `version` → `save`; `modified` the `_id`'s time
+    when not a string, `modifiedBy` `null` when absent; ties sorted by
+    shortname;
+  - restore-files body `{project, version: <save id>}` → `{project, version:
+    <token>, save}`; fix-current `{project}` → `{project, version}`. Its
+    admin page (`admin-page.js`) sends them, from the list;
+  - statuses: **409 a stale token** (both fixes, new); a project without a
+    current version 404 `Project <p> not found` (restore: was 404 or 409,
+    fix-current 409); restore's checks now in microdraw's order (current
+    versions, token, then the save); texts microdraw's (`Provide the save: …`,
+    `No save of this project stored that version`, `Project <p> has N current
+    versions: fix that first`, `Project <p> does not have several current
+    versions`);
+  - the answers gain `version` (the new token) and `log` (the entry's id);
+  - the log entries: restore's value `{username, project, version, files}` →
+    `{username, shortname, before, save, files, project: <the previous
+    document>, after}` (an undo is possible); fix-current's `project` →
+    `shortname`. Its conformance adapter's `removeProject` deletes the admin
+    log entries by `value.shortname` then, not `value.project`;
+  - fix-current marks only current versions `backup` (as it found them);
+  - seen while reading (not fixed): BrainBox's restore writes
+    `[...sources(current), ...files]`, plain strings. A row stored as
+    `{source, name}` (old versions only) loses its `name` there, current rows
+    included; the rows its save writes are strings already, and the names
+    shown are the MRI documents', so no name shown is lost today.
+
+### The suite
+
+Slice 5 gains two rules (5.5 is the app tools, not in the slice):
+
+- **5.6**: a restore-files or a fix-current with a stale version token is a
+  409 and stores nothing (no version added or changed, no log entry); the
+  token the list gave is accepted by fix-current (200, the newest version the
+  only current one).
+- **5.7**: a restore-files with the listed token adds the missing row back,
+  after the current ones, with its name, as a new current version; every
+  earlier version kept unchanged as a backup (5.4's rule).
+
+The slice stores a damaged project as other slices store projects: one
+`insertProject` per version, oldest first, the earlier ones `backup: true`
+(`projectDocument` with 3 files named `Damaged file <i>`; the second version
+lacks file 2); for fix-current, two current versions. It reads the app's
+damaged list as the admin (`GET`), then posts the fix: these cases post to
+admin routes, on the slice's own projects only. The names are compared as
+`fileList` gives them, so BrainBox's sources compare by their file names.
+
+What an adapter adds:
+- **`admin.logEntries(shortname)`**: the number of `log` entries about the
+  project (microdraw `value.shortname`; BrainBox `value.project` today,
+  `value.shortname` after M16c). Missing, the two 5.6 cases fail naming it;
+- **`admin.damaged`** (optional): the routes, list entry and bodies, by
+  default microdraw's (`/admin/json/projects/damaged`, `restore-files`,
+  `fix-current`; `entry(e)` → `{shortname, version, saves: events[].save}`;
+  `restoreBody` `{project, version, save}`; `fixBody` `{project, version}`).
+  BrainBox until M16c: `entry: (e) => ({ shortname: e.project, version:
+  e.version, saves: e.events.map((ev) => ev.version) })`, `restoreBody: ({
+  shortname, save }) => ({ project: shortname, version: save })`, `fixBody:
+  ({ shortname }) => ({ project: shortname })`; nothing after it.
+
+What each app does today:
+- **microdraw**: without `logEntries`, both 5.6 cases fail naming it; with it
+  (`db().collection('log').countDocuments({ 'value.shortname': s })`), 5.6
+  and 5.7 pass (its code is the reference). 5.7 passes today.
+- **BrainBox**: without the mapping, 5.6 and 5.7 fail (its entries have no
+  `shortname`). With the mapping above and `logEntries`, 5.7 passes and 5.6
+  fails: it has no token, so the stale restore stores a version and the
+  stale fix-current marks a backup, until M16c; or declare `'5.6'` in
+  `expectedDifferences` until then.
+
+The reference app (`test/conformanceAdmin.js`) has the three routes,
+microdraw's, over its store, with NWL's `projectVersion` and
+`removalEvents`. Its variants: `noVersionCheck` (5.6), `restoreDropsNames`
+(5.7, the rows put back as plain sources), `restoreInPlace` (5.7, no new
+version); `noBackupMark` now also fails 5.7 (the restore stores its version
+the same way).
+
 ## 1.22.0 — 2026-11
 
 ### New

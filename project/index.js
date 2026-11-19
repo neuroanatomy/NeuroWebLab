@@ -2,7 +2,7 @@
  * Rules for saving project documents (NeuroWebLab 1.9.0), validation helpers
  * (1.10.0), what a visitor may see of a project (1.14.0), project versions
  * (1.16.0), the project lock (1.18.0) and the rights each list's changes
- * need (1.19.0). Each name is also exported from the
+ * need (1.19.0), the version token (1.23.0). Each name is also exported from the
  * root `index.js`.
  */
 const {
@@ -25,7 +25,7 @@ const {
   droppedMessage
 } = require('./rules');
 const { visibleProject, isAnyoneRow, collaboratorKey } = require('./visible');
-const { CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion } = require('./versions');
+const { CURRENT, NEWEST_FIRST, findCurrentProject, saveProjectVersion, projectVersion } = require('./versions');
 const { withLock, isLocked, projectKey, withProjectLock } = require('./lock');
 const { validateProject, projectRowProblems, duplicateLayerNames, parseProjectData } = require('./validate');
 
@@ -56,6 +56,8 @@ module.exports = {
   NEWEST_FIRST,
   findCurrentProject,
   saveProjectVersion,
+  // 1.23.0: the version token of the admin fixes (versions.js)
+  projectVersion,
   // 1.18.0: the project lock (lock.js)
   withLock,
   isLocked,

@@ -84,7 +84,7 @@ Each check belongs to a rule, named by its row in the feature map
 (coordination `tasks/proposed-shared-pm-tests.md`): `1.1` … `1.15`, `1.17` … `1.19`, `2.1`,
 `2.2`, `2.22`, `3.1`, `3.3` (slice 1), `2.1` … `2.33` (slice 2, but 2.11),
 `3.1` … `3.8`, `3.11` … `3.19` (slice 3), `4.1` … `4.4` (slice 4), `5.1`, `5.2`,
-`5.4` (slice 5); `<row>/status` is the exact status code where only
+`5.4`, `5.6`, `5.7` (slice 5); `<row>/status` is the exact status code where only
 the code differs (the refusal itself is checked under the rule). The list is
 `RULES`. A case whose failing checks are all declared is reported as pending,
 its title ending in `[known difference <rule>: …]`. A case with any other
@@ -272,12 +272,26 @@ maintainer approved on 2026-11-11 (coordination
   a non-admin, 2 files, `anyone` view), reads its versions, calls
   `admin.changeProject(admin, shortname)`, and reads them again: one current
   version, a new one; every earlier version still stored, unchanged but its
-  `backup: true`. The log and the lock stay per app.
+  `backup: true`. The log and the lock stay per app;
+- 5.6 (1.23.0, decision D6) a damaged project fix with a stale version
+  token: the slice stores a project whose second version lost a file (one
+  `insertProject` per version, the first `backup: true`), reads the app's
+  damaged list as the admin, and posts restore-files with a token that is
+  not the listed one: **409**, no version added or changed, no log entry
+  (`admin.logEntries`). The same for fix-current on a project stored with
+  two current versions, then fix-current with the listed token: 200, the
+  newest version the only current one;
+- 5.7 (1.23.0) restore-files with the listed token: 200; one current
+  version, a new one: the current rows, then the missing one with its name
+  (`Damaged file 2`, as `fileList` reads it); every earlier version kept
+  unchanged as a backup (5.4's rule).
 
-Each case is tagged with its row; 3 cases for the page, 1 for 5.4, 5 for
+Each case is tagged with its row; 3 cases for the page, 1 for 5.4, 2 for
+5.6 and 1 for 5.7 (since 1.23.0), 5 for
 each admin GET route and 3 for each other route (BrainBox 7 routes: 27,
-microdraw 13: 47). Not in the slice: 5.3, 5.5 (the tools differ by data
-model). The slice signs up a non-admin and gets an admin from `admin.user()`;
+microdraw 13: 47). 5.6 and 5.7 post to the admin routes, on the slice's own
+projects only; 5.1 never does. Not in the slice: 5.3, 5.5 (the tools differ
+by data model). The slice signs up a non-admin and gets an admin from `admin.user()`;
 both are removed by `removeUser` at the end.
 
 What it needs from the app, besides `insertProject`, `versions` and
@@ -295,6 +309,15 @@ What it needs from the app, besides `insertProject`, `versions` and
   It may store versions of its own first (a save that lost a file, a layer
   that lost its name) for the action to have something to fix: the slice
   checks the versions it saw before the call.
+
+- `admin.logEntries(shortname)` (5.6): the number of `log` entries about
+  the project (microdraw `value.shortname`);
+- `admin.damaged` (5.6, 5.7, optional): where the app differs from
+  microdraw's damaged projects routes (`list`, `restoreFiles`, `fixCurrent`
+  paths), list entry (`entry(e)` → `{shortname, version, saves}`, by default
+  `shortname`, `version`, `events[].save`) and bodies (`restoreBody({shortname,
+  version, save})`, by default `{project, version, save}`; `fixBody({shortname,
+  version})`, by default `{project, version}`); each field optional.
 
 A field it lacks fails the cases that need it, naming the field.
 
@@ -324,9 +347,11 @@ checked, writes needing add, an accepted write not stored), a declared
 difference, the missing functions, and each slice's annotation functions
 optional for the other. `conformance/projectAdmin.spec.js` does it for
 slice 5 (`test/conformanceAdmin.js`: a page, a GET, a POST that renames a
-project) with 7 variants (a non-admin let through, a token not counted as a
+project, and since 1.23.0 microdraw's damaged projects routes over the
+store) with 10 variants (a non-admin let through, a token not counted as a
 login, the page open logged out, the page without the login prompt, an
 admin change that overwrites the current version without a backup, one that
-leaves the previous version current, one that changes the previous
-version), a declared difference, the missing fields, and the page's
+leaves the previous version current (5.4 and 5.7), one that changes the
+previous version, fixes that do not check the version token, a restore that
+drops the rows' names, a restore in place), a declared difference, the missing fields, and the page's
 default. `test/conformanceHarness.js` starts the app for all.

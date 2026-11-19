@@ -99,9 +99,11 @@ module.exports = {
   // (project/versions.js);
   // 1.18.0: withLock, isLocked, projectKey, withProjectLock (project/lock.js);
   // 1.19.0: keepListsWithoutEditRights (project/save.js);
-  // 1.20.0: validateProject, projectRowProblems, duplicateLayerNames, parseProjectData (project/validate.js)
+  // 1.20.0: validateProject, projectRowProblems, duplicateLayerNames, parseProjectData (project/validate.js);
+  // 1.23.0: projectVersion (project/versions.js)
   ...project,
-  // 1.11.0: admin access (admin/)
+  // 1.11.0: admin access (admin/);
+  // 1.23.0: damagedProjects, BATCH_LENGTH, EXAMPLES (admin/damaged.js)
   ...admin,
   // 1.12.0: embed tickets (embed/) and the Embed Project route (routes/)
   ...embed,

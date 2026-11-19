@@ -56,6 +56,18 @@ const { client } = require('./http');
  * @property {string} [page] 5.2: the admin page (default `/admin`)
  * @property {function(): Promise<User>} [user] An admin, a User as createUser's (removed by removeUser)
  * @property {function(User, string): Promise<void>} [changeProject] 5.4: as the admin, run one of the app's admin actions on a project the slice stored; it may store versions of its own first
+ * @property {function(string): Promise<number>} [logEntries] 5.6: the number of entries of the `log` collection about a project (its shortname)
+ * @property {Damaged} [damaged] 5.6, 5.7: the damaged projects routes, entries and bodies, where they differ from microdraw's
+ */
+
+/**
+ * @typedef {object} Damaged Each field is optional: microdraw's by default (NeuroWebLab 1.23.0)
+ * @property {string} [list] GET, as the admin: an answer with `list`, the damaged projects (default `/admin/json/projects/damaged`)
+ * @property {string} [restoreFiles] POST (default `/admin/json/projects/restore-files`)
+ * @property {string} [fixCurrent] POST (default `/admin/json/projects/fix-current`)
+ * @property {function(object): {shortname: string, version: string, saves: Array<string>}} [entry] An entry of the list in the suite's shape: `saves` the ids of its events' saves (default: `shortname`, `version`, `events[].save`)
+ * @property {function({shortname: string, version: string, save: string}): object} [restoreBody] The body of restore-files (default `{project, version, save}`)
+ * @property {function({shortname: string, version: string}): object} [fixBody] The body of fix-current (default `{project, version}`)
  */
 
 /**
@@ -189,6 +201,18 @@ const defaultRows = {
   searchUsers: (body) => arrayOf(body, (r) => ({ username: r && (r.username || r.nickname), name: r && r.name }))
 };
 
+/* The damaged projects routes, entries and bodies: microdraw's (slice 5: 5.6, 5.7) */
+const defaultDamaged = {
+  list: '/admin/json/projects/damaged',
+  restoreFiles: '/admin/json/projects/restore-files',
+  fixCurrent: '/admin/json/projects/fix-current',
+  entry: (e) => (e && typeof e === 'object' ?
+    { shortname: e.shortname, version: e.version, saves: (Array.isArray(e.events) ? e.events : []).map((ev) => ev && ev.save) } :
+    null),
+  restoreBody: ({ shortname, version, save }) => ({ project: shortname, version, save }),
+  fixBody: ({ shortname, version }) => ({ project: shortname, version })
+};
+
 /* An adapter field a slice needs and the app did not give */
 const missing = (field, why) => () => Promise.reject(new Error(`adapter.${field} is needed: ${why}`));
 
@@ -223,7 +247,8 @@ const resolveAdapter = (adapter) => {
       routes: null,
       page: '/admin',
       user: missing('admin.user', 'an admin, a User as createUser\'s (slice 5)'),
-      changeProject: missing('admin.changeProject', 'run an admin action on a project as the admin (slice 5: 5.4)')
+      changeProject: missing('admin.changeProject', 'run an admin action on a project as the admin (slice 5: 5.4)'),
+      logEntries: missing('admin.logEntries', 'the number of log entries about a project (slice 5: 5.6)')
     },
     fileList: (project) => ((project && project.files && Array.isArray(project.files.list)) ? project.files.list : []).map(fileOf),
     anonymousClient: () => client(url()),
@@ -251,8 +276,9 @@ const resolveAdapter = (adapter) => {
   // each slice's annotation functions are optional: the ones the app gives, the others named when missing
   const annotations = { ...defaults.annotations, ...(adapter.annotations || {}) };
   const admin = { ...defaults.admin, ...(adapter.admin || {}) };
+  admin.damaged = { ...defaultDamaged, ...((adapter.admin && adapter.admin.damaged) || {}) };
 
   return { ...defaults, ...adapter, url, routes, expectedDifferences, layer, removesUsers, rows, annotations, admin };
 };
 
-module.exports = { defaultRoutes, projectDocument, resolveAdapter, signUp };
+module.exports = { defaultDamaged, defaultRoutes, projectDocument, resolveAdapter, signUp };

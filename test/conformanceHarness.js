@@ -129,6 +129,7 @@ const harness = (name) => {
     admin: {
       routes: [{ method: 'GET', path: '/admin/json/projects' }, { method: 'POST', path: '/admin/json/projects/rename' }],
       user: adminUser,
+      logEntries: (shortname) => h.store.adminLog.filter((e) => e.value.shortname === shortname).length,
       changeProject: async (admin, shortname) => {
         const res = await admin.client.post('/admin/json/projects/rename', { json: { project: shortname, name: 'Renamed by an admin' } });
         if (res.status !== 200) {
