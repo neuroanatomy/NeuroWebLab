@@ -1,5 +1,68 @@
 # Changelog
 
+## 1.24.0 — 2026-11
+
+### New
+
+Exported from `require('neuroweblab')` (T002 R1a, redundancy audit
+2026-11-20, candidate 1): the three damaged projects handlers that both apps
+still wrote around 1.23.0's `damagedProjects`, in `admin/damagedRoutes.js`.
+microdraw's handlers are the reference. The server answers do not change:
+paths, middleware, bodies, statuses and the 400 texts stay the apps'.
+
+- **`damagedProjectsRoutes(damaged, { nativeDb, requestUsername, logger })`**
+  returns `{getDamagedProjects, restoreProjectFiles, fixProjectCurrentVersions}`,
+  Express handlers `(req, res)`.
+  - `damaged` is what `damagedProjects(adapter)` returns; `nativeDb` is
+    `(req) => db` (microdraw `req.app.db.nativeMongoDB()`, BrainBox
+    `req.nativeDb`); `requestUsername` defaults to NeuroWebLab's; `logger`
+    (pino's `error({err}, message)`) defaults to `sendResult`'s,
+    `console.log('ERROR:', err)`. A missing function is a `TypeError` naming
+    it, at start-up.
+  - `getDamagedProjects` → `{success: true, list}`.
+  - `restoreProjectFiles`, body `{project, version, save}`: 400 `Provide the
+    project shortname`, 400 `Provide the version of the project, as listed`,
+    400 `Provide the save: the id of the version it stored, as listed`; then
+    `restoreFiles(db, {shortname, version, save, username})`.
+  - `fixProjectCurrentVersions`, body `{project, version}`: the first two 400s;
+    then `fixCurrentVersions(db, {shortname, version, username})`.
+  - All three answer through `sendResult`: a `{status, error}` (404, 409) as
+    it is, otherwise `{success: true, ...result}`; a thrown error is a 500
+    `Server error`, logged. `nativeDb` is called inside the promise, so a
+    throw there is a 500 too (microdraw: it went to Express's error handler).
+- **`projectFromBody(body)`** → `{shortname, version}` or `{error}` (the first
+  two texts above); a missing body is `{error: 'Provide the project shortname'}`.
+  microdraw's other admin fixes use it.
+
+The log lines do not change: microdraw passes its pino logger (`admin request
+failed`, as its `sendResult` did); BrainBox passes none, and
+`console.log('ERROR:', err)` is what its `serverError` wrote for the list.
+
+### What the apps must do
+
+- **microdraw** (R1c), `app/controller/admin/admin.controller.js`:
+  - :146–:156 `projectFromBody` goes; import it from `neuroweblab` (used at
+    :165, :180, :225, :254, unchanged);
+  - :263–:308, the three handlers, become
+    `const { getDamagedProjects, restoreProjectFiles, fixProjectCurrentVersions } = nwl.damagedProjectsRoutes(damaged, { nativeDb, requestUsername, logger });`
+    (`damaged` :7, `nativeDb` :32 stay); the exports :441–:443 keep their
+    names;
+  - `app/controller/admin/index.js` :24–:26 stay as they are.
+- **BrainBox** (R1d), `controller/admin/admin.controller.js`:
+  - :230–:295 (`getDamagedProjects`, `sendFixResult`, `projectFromBody`,
+    `restoreProjectFiles`, `fixProjectCurrentVersions`) become
+    `damagedProjectsRoutes(projects, { nativeDb: (req) => req.nativeDb, requestUsername })`,
+    `damagedProjectsRoutes` imported at :7, where `sendResult` goes (no
+    other use); the exports keep their names;
+  - `controller/admin/index.js` :11–:13 stay as they are.
+
+### The suite
+
+`admin/damagedRoutes.spec.js` (20 cases, fake `req`/`res`): `projectFromBody`
+(each text, root export); each handler's 400 texts, a 200 with the arguments
+passed, a 409 (and 404) passed through; the list's 500, logged, with a logger,
+without one (`console.log('ERROR:', err)`), and when `nativeDb` throws.
+
 ## 1.23.0 — 2026-11
 
 ### New
